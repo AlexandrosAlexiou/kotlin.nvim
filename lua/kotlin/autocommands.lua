@@ -4,7 +4,7 @@ local decompiler = require("kotlin.decompiler")
 local M = {}
 
 -- Register autocommands for the supported protocols
-function M.setup_autocommands()
+function M.setup()
   -- Create an autogroup for our commands
   local augroup = api.nvim_create_augroup("KotlinDecompile", { clear = true })
 
