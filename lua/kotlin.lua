@@ -151,14 +151,18 @@ local function setup(opts)
   require("kotlin.autocommands").setup()
   require("kotlin.commands").setup()
 
+  local default_root_markers = {
+    "build.gradle",
+    "build.gradle.kts",
+    "pom.xml",
+  }
+
+  local root_markers = opts.root_markers or default_root_markers
+
   vim.lsp.config.kotlin_ls = {
     cmd = cmd,
     filetypes = { "kotlin" },
-    root_markers = {
-      "build.gradle",
-      "build.gradle.kts",
-      "pom.xml",
-    },
+    root_markers = root_markers,
   }
 
   vim.lsp.enable("kotlin_ls")
