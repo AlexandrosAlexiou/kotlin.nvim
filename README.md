@@ -5,6 +5,7 @@ Extensions for the built-in [Language Server Protocol][1] support in [Neovim][2]
 ## 🧩 Extensions
 
 - [x] Decompile and open class file contents using kotlin-lsp `decompile` command
+- [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
 
 ## 📦 Installation
 

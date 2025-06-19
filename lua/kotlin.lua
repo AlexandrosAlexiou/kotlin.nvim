@@ -149,6 +149,7 @@ local function setup(opts)
   table.insert(cmd, "--stdio")
 
   require("kotlin.autocommands").setup()
+  require("kotlin.commands").setup()
 
   vim.lsp.config.kotlin_ls = {
     cmd = cmd,
