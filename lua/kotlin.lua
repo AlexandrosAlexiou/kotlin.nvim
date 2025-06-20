@@ -1,11 +1,13 @@
 local function setup(opts)
   opts = opts or {}
 
+  local is_windows = vim.fn.has("win32") == 1
+
   local jre_path = opts.jre_path
 
   local java_bin = "java"
   if jre_path then
-    local java_executable = vim.fn.has("win32") == 1 and "java.exe" or "java"
+    local java_executable = is_windows and "java.exe" or "java"
     java_bin = jre_path .. "/bin/" .. java_executable
 
     if vim.fn.executable(java_bin) ~= 1 then
@@ -13,7 +15,7 @@ local function setup(opts)
       return
     end
   elseif vim.env.JAVA_HOME then
-    local java_executable = vim.fn.has("win32") == 1 and "java.exe" or "java"
+    local java_executable = is_windows and "java.exe" or "java"
     java_bin = vim.env.JAVA_HOME .. "/bin/" .. java_executable
 
     if vim.fn.executable(java_bin) ~= 1 then
@@ -22,16 +24,36 @@ local function setup(opts)
     end
   end
 
-  local kotlin_lsp_dir = os.getenv("KOTLIN_LSP_DIR")
-  if not kotlin_lsp_dir then
-    vim.notify("KOTLIN_LSP_DIR environment variable is not set", vim.log.levels.ERROR)
-    return
+  -- Try to find the Kotlin LSP directory, first from Mason packages, then from env var
+  local kotlin_lsp_dir = nil
+  local lib_dir = nil
+
+  local mason_package_dir = vim.fn.expand("$MASON/packages/kotlin-lsp")
+
+  if vim.fn.isdirectory(mason_package_dir) == 1 then
+    if vim.fn.isdirectory(mason_package_dir .. "/lib") == 1 then
+      lib_dir = mason_package_dir .. "/lib"
+    end
   end
 
-  local lib_dir = kotlin_lsp_dir .. "/lib"
-  if vim.fn.isdirectory(lib_dir) == 0 then
-    vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
-    return
+  -- Fallback to environment variable if not found in Mason
+  if not lib_dir then
+    kotlin_lsp_dir = os.getenv("KOTLIN_LSP_DIR")
+    if not kotlin_lsp_dir then
+      vim.notify(
+        "KOTLIN_LSP_DIR environment variable is not set and Kotlin LSP not found in Mason",
+        vim.log.levels.ERROR
+      )
+      return
+    end
+
+    lib_dir = kotlin_lsp_dir .. "/lib"
+    if vim.fn.isdirectory(lib_dir) == 0 then
+      vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
+      return
+    end
+
+    vim.notify("Using Kotlin LSP from environment variable: " .. lib_dir, vim.log.levels.INFO)
   end
 
   local cmd = {
@@ -136,7 +158,6 @@ local function setup(opts)
     "jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED",
   }
 
-  local is_windows = vim.fn.has("win32") == 1
   if is_windows then
     table.insert(cmd, "-cp")
     table.insert(cmd, lib_dir .. "\\*")

@@ -6,6 +6,7 @@ Extensions for the built-in [Language Server Protocol][1] support in [Neovim][2]
 
 - [x] Decompile and open class file contents using kotlin-lsp `decompile` command
 - [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
+- [x] Support kotlin-lsp installation from [Mason][6]
 
 ## 📦 Installation
 
@@ -45,3 +46,4 @@ Install [kotlin-lsp][3] by following their [Installation instructions for Neovim
 [3]: https://github.com/Kotlin/kotlin-lsp/
 [4]: https://github.com/mfussenegger/nvim-jdtls
 [5]: https://github.com/Kotlin/kotlin-lsp/tree/main/kotlin-vscode
+[6]: https://github.com/mason-org/mason.nvim
