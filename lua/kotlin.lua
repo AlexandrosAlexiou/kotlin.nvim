@@ -56,8 +56,7 @@ local function setup(opts)
     vim.notify("Using Kotlin LSP from environment variable: " .. lib_dir, vim.log.levels.INFO)
   end
 
-  local cmd = {
-    java_bin,
+  local default_jvm_args = {
     "--add-opens",
     "java.base/java.io=ALL-UNNAMED",
     "--add-opens",
@@ -157,6 +156,19 @@ local function setup(opts)
     "--add-opens",
     "jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED",
   }
+
+  local jvm_args = default_jvm_args
+  if opts.jvm_args and type(opts.jvm_args) == "table" then
+    for _, arg in ipairs(opts.jvm_args) do
+      table.insert(jvm_args, arg)
+    end
+  end
+
+  local cmd = { java_bin }
+
+  for _, arg in ipairs(jvm_args) do
+    table.insert(cmd, arg)
+  end
 
   if is_windows then
     table.insert(cmd, "-cp")
