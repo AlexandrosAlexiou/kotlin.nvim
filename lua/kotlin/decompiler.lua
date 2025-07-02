@@ -1,7 +1,7 @@
 ---@mod Kotlin LSP extensions for Neovim and kotlin-ls by JetBrains
 
 local api = vim.api
-local util = require("kotlin.util")
+local lsp = require("kotlin.lsp")
 local kotlin = require("kotlin")
 
 local M = {}
@@ -22,7 +22,7 @@ function M.open_classfile(fname)
     end
   end
 
-  local clients = util.get_clients({ name = "kotlin_ls" })
+  local clients = lsp.get_clients({ name = "kotlin_ls" })
   local client = clients[1]
 
   assert(client, "Must have a `kotlin-ls` client to load class file or jdt uri")
@@ -62,7 +62,7 @@ function M.open_classfile(fname)
     arguments = { uri },
   }
 
-  util.execute_command(command, handler)
+  lsp.execute_command(command, handler)
   -- Need to block. Otherwise logic could run that sets the cursor to a position
   -- that's still missing.
   vim.wait(kotlin.settings.jdt_uri_timeout_ms, function()

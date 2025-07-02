@@ -1,4 +1,4 @@
-local util = require("kotlin.util")
+local lsp = require("kotlin.lsp")
 
 local M = {}
 
@@ -11,7 +11,7 @@ function M.export_workspace_to_json()
     return
   end
 
-  util.execute_command({
+  lsp.execute_command({
     command = "exportWorkspace",
     arguments = { cwd },
   }, function(err, _)
