@@ -65,7 +65,7 @@ function M.open_classfile(fname)
   lsp.execute_command(command, handler)
   -- Need to block. Otherwise logic could run that sets the cursor to a position
   -- that's still missing.
-  vim.wait(kotlin.settings.jdt_uri_timeout_ms, function()
+  vim.wait(kotlin.settings.uri_timeout_ms, function()
     return content ~= nil
   end)
 end

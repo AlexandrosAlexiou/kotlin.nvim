@@ -204,7 +204,7 @@ end
 local M = {
   setup = setup,
   settings = {
-    jdt_uri_timeout_ms = 5000,
+    uri_timeout_ms = 5000,
   },
 }
 
