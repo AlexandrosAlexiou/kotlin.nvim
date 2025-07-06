@@ -6,6 +6,7 @@ Extensions for the built-in [Language Server Protocol][1] support in [Neovim][2]
 
 - [x] Decompile and open class file contents using kotlin-lsp `decompile` command
 - [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
+- [x] Toggle hints using the `KotlinHintsToggle` command
 - [x] Support for custom JVM arguments
 - [x] Support kotlin-lsp installation from [Mason][6]
 

@@ -183,6 +183,7 @@ local function setup(opts)
 
   require("kotlin.autocommands").setup()
   require("kotlin.commands").setup()
+  require("kotlin.diagnostics").setup()
 
   local default_root_markers = {
     "build.gradle",
