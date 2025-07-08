@@ -41,7 +41,7 @@ Install the plugin with your package manager:
 
 ```
 
-## 🧱 Language Server Installation
+## 📥 Language Server Installation
 
 You can easily install [kotlin-lsp][3] using [Mason][6] with the following command:
 
