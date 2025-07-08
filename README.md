@@ -9,9 +9,9 @@
     <a href="./doc/kotlin.nvim.txt"><strong>Explore the docs »</strong></a>
   </p>
   <p>
-    <strong>
-Extensions for the built-in <a href="https://microsoft.github.io/language-server-protocol/">Language Server Protocol</a> support in <a href="https://neovim.io/">Neovim</a><br /> (>=0.11.0) for <a href="https://github.com/Kotlin/kotlin-lsp/">kotlin-lsp</a>.
-    </strong>
+<strong>
+Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin Language Server (kotlin-lsp)</a> support in <a href="https://neovim.io/">Neovim</a><br /> (>=0.11.0).
+</strong>
   </p>
 
 [![Neovim][neovim-shield]][neovim-url]
@@ -77,6 +77,7 @@ There is no need to follow the manual installation steps from the [upstream guid
 ## 💐 Credits
 - [nvim-jdtls][4]
 - [kotlin-vscode][5]
+- [rustaceanvim][10]
 
 [1]: https://microsoft.github.io/language-server-protocol/
 [2]: https://neovim.io/
@@ -87,6 +88,7 @@ There is no need to follow the manual installation steps from the [upstream guid
 [7]: https://github.com/mason-org/mason-lspconfig.nvim
 [8]: https://github.com/neovim/nvim-lspconfig
 [9]: https://github.com/Kotlin/kotlin-lsp/blob/main/scripts/neovim.md
+[10]: https://github.com/mrcjkb/rustaceanvim
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [neovim-shield]: https://img.shields.io/badge/NeoVim-%2357A143.svg?&style=for-the-badge&logo=neovim&logoColor=white
