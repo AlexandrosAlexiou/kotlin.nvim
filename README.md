@@ -1,6 +1,26 @@
-# kotlin.nvim
+<!-- markdownlint-disable -->
+<br />
+<div align="center">
+  <a href="https://github.com/AlexandrosAlexiou/kotlin.nvim">
+    <img src="./kotlin.nvim.svg" alt="rustaceanvim">
+  </a>
+  <p align="center">
+    <br />
+    <a href="./doc/kotlin.nvim.txt"><strong>Explore the docs »</strong></a>
+  </p>
+  <p>
+    <strong>
+Extensions for the built-in <a href="https://microsoft.github.io/language-server-protocol/">Language Server Protocol</a> support in <a href="https://neovim.io/">Neovim</a><br /> (>=0.11.0) for <a href="https://github.com/Kotlin/kotlin-lsp/">kotlin-lsp</a>.
+    </strong>
+  </p>
 
-Extensions for the built-in [Language Server Protocol][1] support in [Neovim][2] (>= 0.11.0) for [kotlin-lsp][3].
+[![Neovim][neovim-shield]][neovim-url]
+[![Lua][lua-shield]][lua-url]
+[![Kotlin][kotlin-shield]][kotlin-url]
+
+[![GPL2 License][license-shield]][license-url]
+[![Issues][issues-shield]][issues-url]
+</div>
 
 ## 🧩 Extensions
 
@@ -67,3 +87,15 @@ There is no need to follow the manual installation steps from the [upstream guid
 [7]: https://github.com/mason-org/mason-lspconfig.nvim
 [8]: https://github.com/neovim/nvim-lspconfig
 [9]: https://github.com/Kotlin/kotlin-lsp/blob/main/scripts/neovim.md
+
+<!-- MARKDOWN LINKS & IMAGES -->
+[neovim-shield]: https://img.shields.io/badge/NeoVim-%2357A143.svg?&style=for-the-badge&logo=neovim&logoColor=white
+[neovim-url]: https://neovim.io/
+[lua-shield]: https://img.shields.io/badge/lua-%232C2D72.svg?style=for-the-badge&logo=lua&logoColor=white
+[lua-url]: https://www.lua.org/
+[kotlin-shield]: https://img.shields.io/badge/Kotlin-7F52FF?style=for-the-badge&logo=Kotlin&logoColor=white
+[kotlin-url]: https://kotlinlang.org/
+[issues-shield]: https://img.shields.io/github/issues/alexandrosalexiou/kotlin.nvim.svg?style=for-the-badge
+[issues-url]: https://github.com/AlexandrosAlexiou/kotlin.nvim/issues
+[license-shield]: https://img.shields.io/github/license/mrcjkb/rustaceanvim.svg?style=for-the-badge
+[license-url]: https://github.com/mrcjkb/rustaceanvim/blob/master/LICENSE
