@@ -1,14 +1,53 @@
-==============================================================================
-LSP extensions for Neovim and kotlin-ls by JetBrains                 *kotlin-ls*
+==========================================================================================
+Table of Contents                                                     *kotlin.nvim.contents*
 
+Introduction ··························································· |kotlin.nvim.intro|
+Plugin Configuration ·················································· |kotlin.nvim.config|
+LSP Extensions ···················································· |kotlin.nvim.extensions|
+Toggle Hints ··························································· |kotlin.nvim.hints|
 
-M.open_classfile({fname})                                 *kotlin.open_classfile*
-     Open `jdt://` or `jar://` uri, decompile class contents and load them into the buffer
+==========================================================================================
+
+Introduction                                                       kotlin.nvim.intro*
+
+This plugin provides advanced Kotlin support for Neovim, integrating with
+`kotlin-ls`, JetBrains' Kotlin Language Server. It offers essential features
+such as class file decompilation, workspace export, and diagnostic hint toggling.
+
+==========================================================================================
+
+Plugin Configuration                                                    *kotlin.nvim.config*
+
+kotlin.nvim is a filetype plugin and does not require a `setup` function.
+
+Notes:
+
+ - Diagnostic hints can be toggled dynamically using the `KotlinHintsToggle` command.
+
+===========================================================================================
+
+LSP Extensions                                                       *kotlin.nvim.extensions*
+
+kotlin.nvim includes additional extensions for Kotlin LSP:
+
+M.open_classfile({fname})                                             *kotlin.open_classfile*
+     Open `jdt://` or `jar://` URI, decompile class contents, and load them into the buffer.
 
     Parameters: ~
         {fname}  (string)
 
-M.export_workspace_to_json()                               *kotlin.export_workspace_to_json*
-    Export Kotlin LSP workspace as JSON in cwd
+M.export_workspace_to_json()                                *kotlin.export_workspace_to_json*
+    Export Kotlin LSP workspace as JSON to the current working directory.
+
+==========================================================================================
+
+Toggle Hints                                                             *kotlin.nvim.hints*
+
+Toggle diagnostic hints provided by kotlin-ls using the `KotlinHintsToggle`
+command. This feature is useful for decluttering the editor interface.
+
+Commands: ~
+
+`:KotlinHintsToggle` - Enable or disable diagnostic hints dynamically.
 
 vim:tw=78:ts=8:noet:ft=help:norl:
