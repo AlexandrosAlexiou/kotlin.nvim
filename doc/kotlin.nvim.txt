@@ -43,7 +43,7 @@ M.export_workspace_to_json()                                *kotlin.export_works
 
 Toggle Hints                                                             *kotlin.nvim.hints*
 
-Toggle diagnostic hints provided by kotlin-ls using the `KotlinHintsToggle`
+Toggle diagnostic hints provided by kotlin.nvim using the `KotlinHintsToggle`
 command. This feature is useful for decluttering the editor interface.
 
 Commands: ~
