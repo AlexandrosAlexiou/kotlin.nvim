@@ -18,7 +18,7 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 [![Lua][lua-shield]][lua-url]
 [![Kotlin][kotlin-shield]][kotlin-url]
 
-[![GPL2 License][license-shield]][license-url]
+[![GPL3 License][license-shield]][license-url]
 [![Issues][issues-shield]][issues-url]
 </div>
 
@@ -99,5 +99,5 @@ There is no need to follow the manual installation steps from the [upstream guid
 [kotlin-url]: https://kotlinlang.org/
 [issues-shield]: https://img.shields.io/github/issues/alexandrosalexiou/kotlin.nvim.svg?style=for-the-badge
 [issues-url]: https://github.com/AlexandrosAlexiou/kotlin.nvim/issues
-[license-shield]: https://img.shields.io/github/license/mrcjkb/rustaceanvim.svg?style=for-the-badge
-[license-url]: https://github.com/mrcjkb/rustaceanvim/blob/master/LICENSE
+[license-shield]: https://img.shields.io/github/license/AlexandrosAlexiou/kotlin.nvim.svg?style=for-the-badge
+[license-url]:https://github.com/AlexandrosAlexiou/kotlin.nvim/blob/main/LICENSE.txt
