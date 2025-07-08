@@ -14,19 +14,19 @@ This plugin provides advanced Kotlin support for Neovim, integrating with
 `kotlin-ls`, JetBrains' Kotlin Language Server. It offers essential features
 such as class file decompilation, workspace export, and diagnostic hint toggling.
 
-===========================================================================================
+==========================================================================================
 
-LSP Extensions                                                       *kotlin.nvim.extensions*
+LSP Extensions                                                      *kotlin.nvim.extensions*
 
 kotlin.nvim includes additional extensions for Kotlin LSP:
 
-M.open_classfile({fname})                                             *kotlin.open_classfile*
+M.open_classfile({fname})                                            *kotlin.open_classfile*
      Open `jdt://` or `jar://` URI, decompile class contents, and load them into the buffer.
 
     Parameters: ~
         {fname}  (string)
 
-M.export_workspace_to_json()                                *kotlin.export_workspace_to_json*
+M.export_workspace_to_json()                               *kotlin.export_workspace_to_json*
     Export Kotlin LSP workspace as JSON to the current working directory.
 
 ==========================================================================================
