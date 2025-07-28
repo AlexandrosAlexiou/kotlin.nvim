@@ -29,7 +29,7 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 - [x] Toggle hints using the `KotlinHintsToggle` command
 - [x] Support for custom JVM arguments
 - [x] Support kotlin-lsp installation from [Mason][6]
-
+- [x] Navigate to package folders from package declarations (opens the folder view with [oil.nvim][11] using LSP "go to definition")
 
 ## 📦 Installation
 
@@ -40,6 +40,7 @@ Install the plugin with your package manager:
 {
     "AlexandrosAlexiou/kotlin.nvim",
     ft = { "kotlin" },
+    dependencies = { "mason.nvim", "mason-lspconfig.nvim", "oil.nvim" },
     config = function()
         require("kotlin").setup {
             -- Optional: Specify root markers for multi-module projects
@@ -78,6 +79,7 @@ There is no need to follow the manual installation steps from the [upstream guid
 - [nvim-jdtls][4]
 - [kotlin-vscode][5]
 - [rustaceanvim][10]
+- [oil.nvim][11]
 
 [1]: https://microsoft.github.io/language-server-protocol/
 [2]: https://neovim.io/
@@ -89,7 +91,7 @@ There is no need to follow the manual installation steps from the [upstream guid
 [8]: https://github.com/neovim/nvim-lspconfig
 [9]: https://github.com/Kotlin/kotlin-lsp/blob/main/scripts/neovim.md
 [10]: https://github.com/mrcjkb/rustaceanvim
-
+[11]: https://github.com/stevearc/oil.nvim
 <!-- MARKDOWN LINKS & IMAGES -->
 [neovim-shield]: https://img.shields.io/badge/NeoVim-%2357A143.svg?&style=for-the-badge&logo=neovim&logoColor=white
 [neovim-url]: https://neovim.io/

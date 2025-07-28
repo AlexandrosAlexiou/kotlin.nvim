@@ -40,4 +40,23 @@ Commands: ~
 
 `:KotlinHintsToggle` - Enable or disable diagnostic hints dynamically.
 
+==========================================================================================
+
+Kotlin Package Oil Resolution                                         *kotlin.nvim.oil*
+
+kotlin.nvim supports Kotlin package resolution, allowing you to easily
+navigate to package folders declared in your Kotlin projects.
+
+This feature leverages the LSP's (Language Server Protocol) "go to definition"
+functionality: when you use "go to definition" (`gd`) on a package name, if
+the LSP returns a response for the package—it jumps directly to the
+corresponding package folder using an oil.nvim buffer.
+
+Note: ~
+
+No additional configuration is required for this feature. It works out of the box
+if the LSP supports and returns a response for the package reference.
+
+==========================================================================================
+
 vim:tw=78:ts=8:noet:ft=help:norl:
