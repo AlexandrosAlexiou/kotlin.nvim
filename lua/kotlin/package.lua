@@ -24,7 +24,7 @@ function M.setup()
         if vim.api.nvim_buf_is_valid(args.buf) then
           local lines = vim.api.nvim_buf_get_lines(args.buf, 0, -1, false)
           if #lines <= 1 and (not lines[1] or lines[1] == "") then
-            vim.cmd("edit")
+            vim.cmd("edit!")
           end
         end
       end, 100)
