@@ -2,7 +2,6 @@ local M = {}
 
 -- Helper functions
 function M.get_clients(...)
-  ---@diagnostic disable-next-line: deprecated
   local clients = (vim.lsp.get_clients or vim.lsp.get_active_clients)(...)
   return vim.tbl_map(M.add_client_methods, clients)
 end
