@@ -1,11 +1,91 @@
-local function setup(opts)
-  opts = opts or {}
+local M = {}
 
+function M.setup(opts)
+  -- Create an autocommand group for kotlin-lsp
+  local group = vim.api.nvim_create_augroup("kotlin_lsp", { clear = true })
+
+  -- Set up the autocmd to configure Kotlin LSP when a Kotlin file is opened
+  vim.api.nvim_create_autocmd("FileType", {
+    pattern = "kotlin",
+    callback = function()
+      M.setup_kotlin_lsp(opts)
+    end,
+    group = group,
+  })
+
+  vim.api.nvim_create_user_command("KotlinCleanWorkspace", function()
+    M.clean_workspace()
+  end, { desc = "Clean Kotlin LSP workspace for current project" })
+end
+
+function M.get_workspace_base_dir()
   local is_windows = vim.fn.has("win32") == 1
 
-  local jre_path = opts.jre_path
+  if is_windows then
+    -- Use %LOCALAPPDATA% on Windows
+    local localappdata = os.getenv("LOCALAPPDATA")
+    if localappdata then
+      return localappdata .. "\\kotlin-lsp-workspaces"
+    else
+      -- Fallback to user profile
+      local userprofile = os.getenv("USERPROFILE")
+      return userprofile .. "\\AppData\\Local\\kotlin-lsp-workspaces"
+    end
+  else
+    -- Use ~/.cache on Unix-like systems
+    local home = os.getenv("HOME")
+    return home .. "/.cache/kotlin-lsp-workspaces"
+  end
+end
 
+function M.clean_workspace()
+  local current_dir = vim.fn.getcwd()
+  local project_name = vim.fn.fnamemodify(current_dir, ":p:h:t")
+  local workspace_base = M.get_workspace_base_dir()
+  local is_windows = vim.fn.has("win32") == 1
+  local workspace_dir = workspace_base .. (is_windows and "\\" or "/") .. project_name
+
+  vim.notify("Cleaning workspace for " .. project_name, vim.log.levels.INFO)
+
+  -- Stop existing Kotlin LSP clients
+  for _, client in ipairs(vim.lsp.get_clients({ name = "kotlin_ls" })) do
+    vim.notify("Stopping Kotlin LSP...", vim.log.levels.INFO)
+    vim.lsp.stop_client(client.id)
+    vim.cmd("sleep 500m")
+  end
+
+  -- Remove workspace directory if it exists
+  if vim.fn.isdirectory(workspace_dir) == 1 then
+    if is_windows then
+      vim.fn.system('rmdir /s /q "' .. workspace_dir .. '"')
+    else
+      vim.fn.system("rm -rf " .. workspace_dir)
+    end
+  end
+
+  vim.notify("Workspace cleaned. Ready to restart Kotlin LSP.", vim.log.levels.INFO)
+end
+
+function M.setup_kotlin_lsp(opts)
+  if vim.g.disable_lsp then
+    return
+  end
+
+  opts = opts or {}
+  local is_windows = vim.fn.has("win32") == 1
+
+  -- Get current project info
+  local current_dir = vim.fn.getcwd()
+  local project_name = vim.fn.fnamemodify(current_dir, ":p:h:t")
+  local home = os.getenv("HOME")
+  local workspace_dir = home .. "/.cache/kotlin-lsp-workspaces/" .. project_name
+
+  -- Create workspace directory
+  vim.fn.mkdir(workspace_dir, "p")
+
+  local jre_path = opts.jre_path
   local java_bin = "java"
+
   if jre_path then
     local java_executable = is_windows and "java.exe" or "java"
     java_bin = jre_path .. "/bin/" .. java_executable
@@ -24,7 +104,7 @@ local function setup(opts)
     end
   end
 
-  -- Try to find the Kotlin LSP directory, first from Mason packages, then from env var
+  -- Find Kotlin LSP lib directory
   local kotlin_lsp_dir = nil
   local lib_dir = nil
 
@@ -181,6 +261,9 @@ local function setup(opts)
   table.insert(cmd, "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt")
   table.insert(cmd, "--stdio")
 
+  -- Use project-specific workspace directory for indexes
+  table.insert(cmd, "--system-path=" .. workspace_dir)
+
   require("kotlin.autocommands").setup()
   require("kotlin.commands").setup()
   require("kotlin.diagnostics").setup()
@@ -203,11 +286,6 @@ local function setup(opts)
   vim.lsp.enable("kotlin_ls")
 end
 
-local M = {
-  setup = setup,
-  settings = {
-    uri_timeout_ms = 5000,
-  },
-}
+M.settings = { uri_timeout_ms = 5000 }
 
 return M

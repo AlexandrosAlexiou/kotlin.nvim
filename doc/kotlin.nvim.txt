@@ -5,6 +5,7 @@ Introduction ·································�
 Plugin Configuration ·················································· |kotlin.nvim.config|
 LSP Extensions ···················································· |kotlin.nvim.extensions|
 Toggle Hints ··························································· |kotlin.nvim.hints|
+Workspace Management ··············································· |kotlin.nvim.workspace|
 
 ==========================================================================================
 
@@ -12,7 +13,8 @@ Introduction                                                       kotlin.nvim.i
 
 This plugin provides advanced Kotlin support for Neovim, integrating with
 `kotlin-ls`, JetBrains' Kotlin Language Server. It offers essential features
-such as class file decompilation, workspace export, and diagnostic hint toggling.
+such as class file decompilation, workspace export, diagnostic hint toggling,
+and per-project workspace isolation.
 
 ==========================================================================================
 
@@ -39,6 +41,58 @@ command. This feature is useful for decluttering the editor interface.
 Commands: ~
 
 `:KotlinHintsToggle` - Enable or disable diagnostic hints dynamically.
+
+==========================================================================================
+
+Workspace Management                                                *kotlin.nvim.workspace*
+
+kotlin.nvim provides project-specific workspace isolation to prevent LSP
+indexing conflicts between different Kotlin projects. Each project gets its
+own dedicated workspace directory for improved performance and reliability.
+
+Requirements: ~
+
+Workspace isolation with the `--system-path` parameter requires kotlin-lsp
+version 0.253.10629 or later.
+
+Features: ~
+
+• Automatic per-project workspace creation with platform-specific paths
+• Project name-based workspace isolation using directory structure
+• Clean workspace functionality to resolve LSP corruption issues
+• Cross-platform support (Windows, macOS, Linux)
+
+Commands: ~
+
+`:KotlinCleanWorkspace` - Clean the current project's workspace directory,
+                         stop all running Kotlin LSP instances, and prepare
+                         for a fresh LSP restart. This is useful when the
+                         LSP becomes unresponsive or corrupted.
+
+Workspace Structure: ~
+
+Each project workspace is stored in platform-specific locations:
+
+Unix/Linux/macOS:
+```
+~/.cache/kotlin-lsp-workspaces/{project-name}/
+```
+
+Windows:
+```
+%LOCALAPPDATA%\kotlin-lsp-workspaces\{project-name}\
+```
+
+Where `{project-name}` is derived from the current working directory name.
+The workspace contains LSP indexing data, cached symbols, and project-specific
+metadata that improves completion and analysis performance.
+
+Note: ~
+
+Workspace isolation is automatic and requires no additional configuration.
+The LSP will create and manage workspace directories as needed when opening
+Kotlin files in different projects. The plugin automatically detects the
+operating system and uses the appropriate directory conventions.
 
 ==========================================================================================
 
