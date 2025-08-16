@@ -7,7 +7,7 @@ M.hints_enabled = true -- Toggle for HINT severity
 local stored_diagnostics = {}
 local storage_initialized = false
 
-local function setup_efficient_storage()
+local function setup_cache()
   if storage_initialized then
     return
   end
@@ -101,7 +101,7 @@ function M.setup()
 
   orig_diagnostic_set = vim.diagnostic.set
 
-  setup_efficient_storage()
+  setup_cache()
 
   vim.diagnostic.set = function(namespace, bufnr, diagnostics, opts)
     if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
