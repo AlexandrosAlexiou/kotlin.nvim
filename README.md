@@ -31,6 +31,7 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 - [x] Support kotlin-lsp installation from [Mason][6]
 - [x] Navigate to package folders from package declarations (opens the folder view with [oil.nvim][11] using LSP "go to definition")
 - [x] Automatic per-project workspace isolation to prevent LSP conflicts and improve performance
+  - Use `KotlinCleanWorkspace` command to clear cached indices for the current project
 
 > [!note]
 > Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
