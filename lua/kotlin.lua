@@ -104,6 +104,20 @@ function M.setup_kotlin_lsp(opts)
     end
   end
 
+  local jre = require("kotlin.jre")
+  if not jre.is_supported_version(java_bin) then
+    vim.notify(
+      string.format(
+        "Java version %d or higher is required to run Kotlin LSP.\n"
+          .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
+        jre.minimum_supported_java_version,
+        jre.minimum_supported_java_version
+      ),
+      vim.log.levels.ERROR
+    )
+    return
+  end
+
   -- Find Kotlin LSP lib directory
   local kotlin_lsp_dir = nil
   local lib_dir = nil
