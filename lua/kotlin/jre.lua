@@ -1,6 +1,6 @@
 local M = {}
 
-M.minimum_supported_jre_version = 11
+M.minimum_supported_jre_version = 21
 
 function M.is_supported_version(java_bin)
   local cmd = '"' .. java_bin .. '" -version 2>&1'
