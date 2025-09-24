@@ -20,7 +20,7 @@ function M.export_workspace_to_json()
       return
     end
 
-    vim.notify("Exported workspace structure to workspace.json", vim.log.levels.INFO)
+    vim.notify("Exported workspace.json to " .. cwd, vim.log.levels.INFO)
   end)
 end
 
