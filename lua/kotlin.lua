@@ -146,8 +146,6 @@ function M.setup_kotlin_lsp(opts)
       vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
       return
     end
-
-    vim.notify("Using Kotlin LSP from environment variable: " .. lib_dir, vim.log.levels.INFO)
   end
 
   local default_jvm_args = {
