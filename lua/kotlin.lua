@@ -247,6 +247,7 @@ function M.setup_kotlin_lsp(opts)
     "jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED",
     "--add-opens",
     "jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED",
+    "--enable-native-access=ALL-UNNAMED",
   }
 
   local jvm_args = default_jvm_args
