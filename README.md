@@ -69,16 +69,39 @@ Install the plugin with your package manager:
 
 ## 📥 Language Server Installation
 
-You can easily install [kotlin-lsp][3] using [Mason][6] with the following command:
+The plugin supports two installation methods for [kotlin-lsp][3]:
+
+### Option 1: Mason Installation (Recommended)
+
+You can easily install kotlin-lsp using [Mason][6] with the following command:
 
 ```vim
 :MasonInstall kotlin-lsp
 ```
 
+This is the recommended approach as Mason handles the installation automatically.
+
+### Option 2: Manual Installation
+
+If you prefer not to use Mason or need to use a specific version of kotlin-lsp, you can install it manually and set the `KOTLIN_LSP_DIR` environment variable to point to your installation directory:
+
+```bash
+export KOTLIN_LSP_DIR=/path/to/your/kotlin-lsp
+```
+
+The plugin will automatically detect and use your manual installation when the environment variable is set. Ensure your installation has the following structure:
+
+```
+$KOTLIN_LSP_DIR/
+└── lib/
+    └── ... (jar files)
+```
+
+> [!tip]
+> The plugin first checks for Mason installations, then falls back to the `KOTLIN_LSP_DIR` environment variable if Mason isn't available or kotlin-lsp isn't installed through it.
+
 > [!caution]
 > If you use other tools like [nvim-lspconfig][8] or [mason-lspconfig][7], make sure to explicitly exclude the `kotlin_lsp` configuration there to avoid conflicts.
-
-There is no need to follow the manual installation steps from the [upstream guide][9]. Mason will handle everything for you.
 
 ## 💐 Credits
 - [nvim-jdtls][4]
