@@ -248,6 +248,7 @@ function M.setup_kotlin_lsp(opts)
     "--add-opens",
     "jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED",
     "--enable-native-access=ALL-UNNAMED",
+    "-Djdk.lang.Process.launchMechanism=FORK",
   }
 
   local jvm_args = default_jvm_args
