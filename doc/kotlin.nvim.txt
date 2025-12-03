@@ -6,6 +6,7 @@ Plugin Configuration ·····························�
 LSP Extensions ···················································· |kotlin.nvim.extensions|
 Toggle Hints ··························································· |kotlin.nvim.hints|
 Workspace Management ··············································· |kotlin.nvim.workspace|
+Disabling LSP ·························································· |kotlin.nvim.disable|
 
 ==========================================================================================
 
@@ -110,6 +111,35 @@ Note: ~
 
 No additional configuration is required for this feature. It works out of the box
 if the LSP supports and returns a response for the package reference.
+
+==========================================================================================
+
+Disabling LSP                                                        *kotlin.nvim.disable*
+
+kotlin.nvim allows you to disable the Kotlin LSP on a per-project basis using
+a marker file. This is useful for projects where you don't want the language
+server to run, since it does not support all kinds of projects yet.
+
+Usage: ~
+
+To disable the Kotlin LSP for a specific project, create a `.disable-kotlin-lsp`
+file in the project root directory (the current working directory when opening
+Kotlin files).
+
+Example:
+```
+cd /path/to/your/kotlin/project
+touch .disable-kotlin-lsp
+```
+
+When the plugin detects this marker file, it will skip LSP initialization and
+display an informational message. The marker file can be an empty file—only
+its presence is checked.
+
+Note: ~
+
+The check is performed based on the current working directory (`getcwd()`), so
+ensure you're in the correct project directory when opening Kotlin files.
 
 ==========================================================================================
 

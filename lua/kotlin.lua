@@ -67,7 +67,8 @@ function M.clean_workspace()
 end
 
 function M.setup_kotlin_lsp(opts)
-  if vim.g.disable_lsp then
+  -- Check for buffer-local disable flag
+  if vim.b.disable_kotlin_lsp then
     return
   end
 
@@ -76,6 +77,13 @@ function M.setup_kotlin_lsp(opts)
 
   -- Get current project info
   local current_dir = vim.fn.getcwd()
+
+  -- Check for marker file that disables Kotlin LSP
+  local marker_file = current_dir .. "/.disable-kotlin-lsp"
+  if vim.fn.filereadable(marker_file) == 1 then
+    return
+  end
+
   local project_name = vim.fn.fnamemodify(current_dir, ":p:h:t")
   local home = os.getenv("HOME")
   local workspace_dir = home .. "/.cache/kotlin-lsp-workspaces/" .. project_name
