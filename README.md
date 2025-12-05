@@ -55,8 +55,9 @@ Install the plugin with your package manager:
                 "mvnw",
                 "settings.gradle",
             },
-            -- Optional: Specify a custom Java path to run the server
-            jre_path = os.getenv("JDK21"),
+            -- Optional: Specify a custom Java path to run the server.
+            -- It must contain /bin/java
+            jre_path = "/usr/lib/jvm/java-21-openjdk-amd64",
             -- Optional: Specify additional JVM arguments
             jvm_args = {
                 "-Xmx4g",
