@@ -110,8 +110,8 @@ function M.setup_kotlin_lsp(opts)
       string.format(
         "Java version %d or higher is required to run Kotlin LSP.\n"
           .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
-        jre.minimum_supported_java_version,
-        jre.minimum_supported_java_version
+        jre.minimum_supported_jre_version,
+        jre.minimum_supported_jre_version
       ),
       vim.log.levels.ERROR
     )
