@@ -57,7 +57,8 @@ Install the plugin with your package manager:
             },
             -- Optional: Specify a custom Java path to run the server.
             -- It must contain /bin/java
-            jre_path = "/usr/lib/jvm/java-21-openjdk-amd64",
+           -- Optional: Specify a custom Java path to run the server, JDK21 is an env var pointing to the JAVA_HOME of JDK version 21 installed in the system
+            jre_path = os.getenv("JDK21"),
             -- Optional: Specify additional JVM arguments
             jvm_args = {
                 "-Xmx4g",
