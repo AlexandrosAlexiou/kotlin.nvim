@@ -83,58 +83,63 @@ function M.setup_kotlin_lsp(opts)
   if vim.fn.filereadable(marker_file) == 1 then
     return
   end
+  
+  -- Check for project-specific configuration file
+  local project_config_file = current_dir .. "/.kotlin-lsp.lua"
+  if vim.fn.filereadable(project_config_file) == 1 then
+    local ok, project_config = pcall(dofile, project_config_file)
+    if ok and type(project_config) == "table" then
+      -- Merge project config with global config (project config takes precedence)
+      opts = vim.tbl_deep_extend("force", opts, project_config)
+    else
+      vim.notify(
+        "Failed to load project config from .kotlin-lsp.lua: " .. tostring(project_config),
+        vim.log.levels.WARN
+      )
+    end
+  end
 
   local project_name = vim.fn.fnamemodify(current_dir, ":p:h:t")
-  local home = os.getenv("HOME")
-  local workspace_dir = home .. "/.cache/kotlin-lsp-workspaces/" .. project_name
+  local workspace_base = M.get_workspace_base_dir()
+  local workspace_dir = workspace_base .. (is_windows and "\\" or "/") .. project_name
 
   -- Create workspace directory
   vim.fn.mkdir(workspace_dir, "p")
 
-  local jre_path = opts.jre_path
-  local java_bin = "java"
-
-  if jre_path then
-    local java_executable = is_windows and "java.exe" or "java"
-    java_bin = jre_path .. "/bin/" .. java_executable
-
-    if vim.fn.executable(java_bin) ~= 1 then
-      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
-      return
-    end
-  elseif vim.env.JAVA_HOME then
-    local java_executable = is_windows and "java.exe" or "java"
-    java_bin = vim.env.JAVA_HOME .. "/bin/" .. java_executable
-
-    if vim.fn.executable(java_bin) ~= 1 then
-      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
-      return
-    end
-  end
-
-  local jre = require("kotlin.jre")
-  if not jre.is_supported_version(java_bin) then
-    vim.notify(
-      string.format(
-        "Java version %d or higher is required to run Kotlin LSP.\n"
-          .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
-        jre.minimum_supported_jre_version,
-        jre.minimum_supported_jre_version
-      ),
-      vim.log.levels.ERROR
-    )
-    return
-  end
-
-  -- Find Kotlin LSP lib directory
+  -- Find Kotlin LSP lib directory and bundled JRE first
   local kotlin_lsp_dir = nil
   local lib_dir = nil
+  local bundled_jre_path = nil
 
   local mason_package_dir = vim.fn.expand("$MASON/packages/kotlin-lsp")
 
   if vim.fn.isdirectory(mason_package_dir) == 1 then
     if vim.fn.isdirectory(mason_package_dir .. "/lib") == 1 then
       lib_dir = mason_package_dir .. "/lib"
+      kotlin_lsp_dir = mason_package_dir
+      
+      -- Check for bundled JRE in Mason installation
+      -- Platform-specific JRE path (macOS uses jre/Contents/Home, others use jre)
+      local jre_base = kotlin_lsp_dir .. "/jre"
+      if vim.fn.isdirectory(jre_base) == 1 then
+        if vim.fn.has("mac") == 1 or vim.fn.has("macunix") == 1 then
+          bundled_jre_path = jre_base .. "/Contents/Home"
+        else
+          bundled_jre_path = jre_base
+        end
+        
+        -- Verify the bundled JRE has a java binary
+        local bundled_java_bin = bundled_jre_path .. (is_windows and "\\bin\\java.exe" or "/bin/java")
+        if vim.fn.executable(bundled_java_bin) ~= 1 then
+          -- JRE directory exists but java is not executable, try to make it executable
+          if not is_windows then
+            vim.fn.system("chmod +x " .. bundled_java_bin)
+          end
+          if vim.fn.executable(bundled_java_bin) ~= 1 then
+            bundled_jre_path = nil
+          end
+        end
+      end
     end
   end
 
@@ -152,6 +157,71 @@ function M.setup_kotlin_lsp(opts)
     lib_dir = kotlin_lsp_dir .. "/lib"
     if vim.fn.isdirectory(lib_dir) == 0 then
       vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
+      return
+    end
+  end
+
+  local jre_path = opts.jre_path
+  local java_bin = "java"
+  local skip_jre_check = false
+
+  -- Priority order for JRE selection:
+  -- 1. User-specified jre_path in config
+  -- 2. Bundled JRE from Mason kotlin-lsp (zero-dependency)
+  -- 3. JAVA_HOME environment variable
+  -- 4. System java (if available)
+
+  if jre_path then
+    -- User explicitly specified a JRE path
+    local java_executable = is_windows and "java.exe" or "java"
+    java_bin = jre_path .. "/bin/" .. java_executable
+
+    if vim.fn.executable(java_bin) ~= 1 then
+      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
+      return
+    end
+  elseif bundled_jre_path then
+    -- Use bundled JRE from Mason kotlin-lsp installation (zero-dependency)
+    local java_executable = is_windows and "java.exe" or "java"
+    java_bin = bundled_jre_path .. "/bin/" .. java_executable
+    skip_jre_check = true -- Skip version check since bundled JRE is known to be compatible
+    
+    vim.notify("Using bundled JRE from kotlin-lsp installation", vim.log.levels.DEBUG)
+  elseif vim.env.JAVA_HOME then
+    -- Use JAVA_HOME
+    local java_executable = is_windows and "java.exe" or "java"
+    java_bin = vim.env.JAVA_HOME .. "/bin/" .. java_executable
+
+    if vim.fn.executable(java_bin) ~= 1 then
+      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
+      return
+    end
+  else
+    -- Fall back to system java
+    if vim.fn.executable("java") == 1 then
+      java_bin = "java"
+    else
+      vim.notify(
+        "No Java runtime found. Please install Java or configure jre_path in your setup.",
+        vim.log.levels.ERROR
+      )
+      return
+    end
+  end
+
+  -- Check JRE version (skip for bundled JRE)
+  if not skip_jre_check then
+    local jre = require("kotlin.jre")
+    if not jre.is_supported_version(java_bin) then
+      vim.notify(
+        string.format(
+          "Java version %d or higher is required to run Kotlin LSP.\n"
+            .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
+          jre.minimum_supported_jre_version,
+          jre.minimum_supported_jre_version
+        ),
+        vim.log.levels.ERROR
+      )
       return
     end
   end
@@ -299,10 +369,24 @@ function M.setup_kotlin_lsp(opts)
 
   local root_markers = opts.root_markers or default_root_markers
 
+  -- Build LSP settings with support for new features
+  local settings = {
+    uri_timeout_ms = 5000,
+  }
+
+  -- Add JDK for symbol resolution if specified
+  -- This can be either a path to JDK installation or a version string
+  -- depending on what kotlin-lsp supports (typically a path)
+  if opts.jdk_for_symbol_resolution then
+    settings.kotlinLSP = settings.kotlinLSP or {}
+    settings.kotlinLSP.jdkForSymbolResolution = opts.jdk_for_symbol_resolution
+  end
+
   vim.lsp.config.kotlin_ls = {
     cmd = cmd,
     filetypes = { "kotlin" },
     root_markers = root_markers,
+    settings = settings,
   }
 
   vim.lsp.enable("kotlin_ls")
