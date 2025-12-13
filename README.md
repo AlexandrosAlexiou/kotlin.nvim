@@ -27,6 +27,7 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 - [x] Decompile and open class file contents using kotlin-lsp `decompile` command
 - [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
 - [x] Toggle hints using the `KotlinHintsToggle` command
+- [x] Full support for LSP inlay hints with fine-grained configuration
 - [x] JDK version specification for symbol resolution
 - [x] Support for custom JVM arguments
 - [x] Support kotlin-lsp installation from [Mason][6]
@@ -42,6 +43,9 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 
 > [!note]
 > Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp v0.254+ or later).
+
+> [!note]
+> Inlay hints require kotlin-lsp **v0.254+** and are configured using the exact format from the VSCode extension.
 
 ## 📦 Installation
 
@@ -70,10 +74,23 @@ Install the plugin with your package manager:
                 "-Xmx4g",
             },
             -- Optional: Specify JDK for symbol resolution (requires kotlin-lsp v0.254+)
-            -- This specifies which JDK to use for resolving symbols and APIs
-            -- Can be a path to JDK installation (e.g., "/path/to/jdk-21")
-            -- or potentially a version string depending on kotlin-lsp implementation
             jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
+            -- Optional: Configure inlay hints (requires kotlin-lsp v0.254+)
+            -- All settings default to true, set to false to disable specific hints
+            inlay_hints = {
+                enabled = true,  -- Enable inlay hints (auto-enable on LSP attach)
+                parameters = true,  -- Show parameter names
+                parameters_compiled = true,  -- Show compiled parameter names  
+                parameters_excluded = false,  -- Show excluded parameter names
+                types_property = true,  -- Show property types
+                types_variable = true,  -- Show local variable types
+                function_return = true,  -- Show function return types
+                function_parameter = true,  -- Show function parameter types
+                lambda_return = true,  -- Show lambda return types
+                lambda_receivers_parameters = true,  -- Show lambda receivers/parameters
+                value_ranges = true,  -- Show value ranges
+                kotlin_time = true,  -- Show kotlin.time warnings
+            },
         }
     end,
 },
@@ -167,6 +184,90 @@ The latest kotlin-lsp versions offer significantly improved code completion:
 - Suggestion ordering on par with IntelliJ IDEA
 - ~30% better completion latency
 - More relevant and context-aware suggestions
+
+### Inlay Hints Support
+
+Full support for LSP inlay hints matching the VSCode extension configuration. All hint types are supported with individual toggles.
+
+#### Quick Start
+
+Minimal configuration (enables all hints with defaults):
+
+```lua
+require("kotlin").setup {
+    inlay_hints = {
+        enabled = true,  -- Auto-enable on LSP attach
+    },
+}
+```
+
+#### All Available Settings
+
+All settings default to `true` except `parameters_excluded`. Only specify settings you want to change:
+
+```lua
+require("kotlin").setup {
+    inlay_hints = {
+        enabled = true,  -- Master switch: enable/disable all inlay hints
+        
+        -- Parameter hints (show parameter names in function calls)
+        parameters = true,  -- foo(name: "value", age: 42)
+        parameters_compiled = true,  -- Show parameter names for compiled code
+        parameters_excluded = false,  -- Show hints for excluded parameters (usually false)
+        
+        -- Type hints (show inferred types)
+        types_property = true,  -- val name: String = "foo"
+        types_variable = true,  -- val count: Int = 42
+        function_return = true,  -- fun foo(): String { }
+        function_parameter = true,  -- fun foo(name: String) { }
+        
+        -- Lambda hints
+        lambda_return = true,  -- { x -> x * 2 }: (Int) -> Int
+        lambda_receivers_parameters = true,  -- Show receivers and parameters
+        
+        -- Other hints
+        value_ranges = true,  -- Show hints for ranges
+        kotlin_time = true,  -- Show kotlin.time warnings
+    },
+}
+```
+
+#### Settings Reference
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `true` | Master switch to enable/disable all inlay hints |
+| `parameters` | `true` | Show parameter names in function calls |
+| `parameters_compiled` | `true` | Show parameter names for compiled/external functions |
+| `parameters_excluded` | `false` | Show parameter names for excluded parameters |
+| `types_property` | `true` | Show type hints for properties |
+| `types_variable` | `true` | Show type hints for local variables |
+| `function_return` | `true` | Show return type hints for functions |
+| `function_parameter` | `true` | Show type hints for function parameters |
+| `lambda_return` | `true` | Show return type hints for lambdas |
+| `lambda_receivers_parameters` | `true` | Show receiver and parameter hints for lambdas |
+| `value_ranges` | `true` | Show hints for value ranges |
+| `kotlin_time` | `true` | Show kotlin.time package warnings |
+
+#### Commands
+
+- `:KotlinInlayHintsToggle` - Toggle inlay hints for the current buffer
+- `:lua vim.lsp.inlay_hint.enable(true)` - Enable inlay hints
+- `:lua vim.lsp.inlay_hint.enable(false)` - Disable inlay hints
+
+#### Key Mapping Example
+
+```lua
+vim.keymap.set('n', '<leader>ih', function()
+    vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+end, { desc = 'Toggle inlay hints' })
+```
+
+**Note:** The `KotlinHintsToggle` command toggles diagnostic hints (HINT severity diagnostics), while `KotlinInlayHintsToggle` controls LSP inlay hints. These are two different features.
+
+#### Implementation Note
+
+Inlay hints work by implementing a `workspace/configuration` handler that responds to server requests for the `jetbrains.kotlin` configuration section. The handler builds a properly nested configuration object matching the VSCode extension format. This is crucial because kotlin-lsp requests configuration dynamically rather than using only the initial settings.
 
 ### Shared Indices
 

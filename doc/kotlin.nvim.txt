@@ -5,6 +5,7 @@ Introduction ·································�
 Plugin Configuration ·················································· |kotlin.nvim.config|
 Per-Project Configuration ··········································· |kotlin.nvim.perproject|
 LSP Extensions ···················································· |kotlin.nvim.extensions|
+Inlay Hints ························································ |kotlin.nvim.inlayhints|
 Toggle Hints ··························································· |kotlin.nvim.hints|
 Workspace Management ··············································· |kotlin.nvim.workspace|
 Disabling LSP ·························································· |kotlin.nvim.disable|
@@ -37,6 +38,7 @@ setup({opts})                                                          *kotlin.s
                 This determines which JDK APIs and libraries are used for
                 code completion and symbol resolution
             • inlay_hints: Configuration for inlay hints (see |kotlin.nvim.inlayhints|)
+                All settings default to true (except parameters_excluded)
 
     Example: ~
 >lua
@@ -44,15 +46,107 @@ setup({opts})                                                          *kotlin.s
             root_markers = { "gradlew", ".git", "settings.gradle" },
             jre_path = "/path/to/jre",
             jvm_args = { "-Xmx4g" },
-            jdk_for_symbol_resolution = "/path/to/jdk",
+            jdk_for_symbol_resolution = "/path/to/jdk-21",
             inlay_hints = {
-                parameterHints = { enabled = true },
-                typeHints = { enabled = true },
-                chainedHints = { enabled = true },
-            },
+                enabled = true,
+                parameters = true,
+                types_property = true,
             },
         }
 <
+
+==========================================================================================
+
+Inlay Hints                                                      *kotlin.nvim.inlayhints*
+
+kotlin.nvim provides full LSP inlay hints support matching the VSCode extension
+configuration format. All hint types can be individually enabled or disabled.
+
+Requirements: ~
+- kotlin-lsp version 0.254 or later
+- Neovim 0.10+ with LSP inlay hints support
+
+Quick Start: ~
+
+Minimal configuration enables all hints with defaults:
+>lua
+    require("kotlin").setup {
+        inlay_hints = {
+            enabled = true,
+        },
+    }
+<
+
+Configuration Options: ~
+
+All settings are optional and default to `true` (except `parameters_excluded`
+which defaults to `false`). Only specify settings you want to change.
+
+enabled                     Master switch to enable/disable all inlay hints
+parameters                  Show parameter names in function calls
+                            Example: foo(name: "value", age: 42)
+parameters_compiled         Show parameter names for compiled/external functions
+parameters_excluded         Show parameter names for excluded parameters
+                            Usually kept false
+types_property              Show type hints for properties
+                            Example: val name: String = "foo"
+types_variable              Show type hints for local variables
+                            Example: val count: Int = 42
+function_return             Show return type hints for functions
+                            Example: fun foo(): String { }
+function_parameter          Show type hints for function parameters
+                            Example: fun foo(name: String) { }
+lambda_return               Show return type hints for lambdas
+                            Example: { x -> x * 2 }: (Int) -> Int
+lambda_receivers_parameters Show receiver and parameter hints for lambdas
+value_ranges                Show hints for value ranges
+kotlin_time                 Show kotlin.time package warnings
+
+Complete Example: ~
+>lua
+    require("kotlin").setup {
+        inlay_hints = {
+            enabled = true,
+            parameters = true,
+            parameters_compiled = true,
+            parameters_excluded = false,
+            types_property = true,
+            types_variable = true,
+            function_return = true,
+            function_parameter = true,
+            lambda_return = true,
+            lambda_receivers_parameters = true,
+            value_ranges = true,
+            kotlin_time = true,
+        },
+    }
+<
+
+Commands: ~
+
+`:KotlinInlayHintsToggle`          Toggle inlay hints for current buffer
+`:lua vim.lsp.inlay_hint.enable(true)`   Enable inlay hints
+`:lua vim.lsp.inlay_hint.enable(false)`  Disable inlay hints
+
+Key Mapping Example: ~
+>lua
+    vim.keymap.set('n', '<leader>ih', function()
+        vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+    end, { desc = 'Toggle inlay hints' })
+<
+
+Note: ~
+
+The `KotlinHintsToggle` command toggles diagnostic hints (HINT severity), not
+inlay hints. Use `KotlinInlayHintsToggle` for LSP inlay hints.
+
+Implementation: ~
+
+Inlay hints work by implementing a workspace/configuration handler that
+responds to server requests. When kotlin-lsp requests the "jetbrains.kotlin"
+configuration section, the plugin builds a properly nested object structure
+matching the VSCode extension format. This dynamic configuration request
+handling is crucial for inlay hints to work.
 
 ==========================================================================================
 

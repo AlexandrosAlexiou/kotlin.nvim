@@ -83,7 +83,7 @@ function M.setup_kotlin_lsp(opts)
   if vim.fn.filereadable(marker_file) == 1 then
     return
   end
-  
+
   -- Check for project-specific configuration file
   local project_config_file = current_dir .. "/.kotlin-lsp.lua"
   if vim.fn.filereadable(project_config_file) == 1 then
@@ -117,7 +117,7 @@ function M.setup_kotlin_lsp(opts)
     if vim.fn.isdirectory(mason_package_dir .. "/lib") == 1 then
       lib_dir = mason_package_dir .. "/lib"
       kotlin_lsp_dir = mason_package_dir
-      
+
       -- Check for bundled JRE in Mason installation
       -- Platform-specific JRE path (macOS uses jre/Contents/Home, others use jre)
       local jre_base = kotlin_lsp_dir .. "/jre"
@@ -127,7 +127,7 @@ function M.setup_kotlin_lsp(opts)
         else
           bundled_jre_path = jre_base
         end
-        
+
         -- Verify the bundled JRE has a java binary
         local bundled_java_bin = bundled_jre_path .. (is_windows and "\\bin\\java.exe" or "/bin/java")
         if vim.fn.executable(bundled_java_bin) ~= 1 then
@@ -185,8 +185,6 @@ function M.setup_kotlin_lsp(opts)
     local java_executable = is_windows and "java.exe" or "java"
     java_bin = bundled_jre_path .. "/bin/" .. java_executable
     skip_jre_check = true -- Skip version check since bundled JRE is known to be compatible
-    
-    vim.notify("Using bundled JRE from kotlin-lsp installation", vim.log.levels.DEBUG)
   elseif vim.env.JAVA_HOME then
     -- Use JAVA_HOME
     local java_executable = is_windows and "java.exe" or "java"
@@ -357,6 +355,7 @@ function M.setup_kotlin_lsp(opts)
   table.insert(cmd, "--system-path=" .. workspace_dir)
 
   require("kotlin.autocommands").setup()
+  require("kotlin.autocommands").setup_inlay_hints(opts)
   require("kotlin.commands").setup()
   require("kotlin.diagnostics").setup()
   require("kotlin.package").setup()
@@ -374,12 +373,29 @@ function M.setup_kotlin_lsp(opts)
     uri_timeout_ms = 5000,
   }
 
-  -- Add JDK for symbol resolution if specified
-  -- This can be either a path to JDK installation or a version string
-  -- depending on what kotlin-lsp supports (typically a path)
+  -- Add inlay hints configuration if specified
+  -- These are flat boolean settings at the top level, matching VSCode extension format
+  if opts.inlay_hints then
+    settings["jetbrains.kotlin.hints.parameters"] = opts.inlay_hints.parameters ~= false
+    settings["jetbrains.kotlin.hints.parameters.compiled"] = opts.inlay_hints.parameters_compiled ~= false
+    settings["jetbrains.kotlin.hints.parameters.excluded"] = opts.inlay_hints.parameters_excluded == true
+    settings["jetbrains.kotlin.hints.settings.types.property"] = opts.inlay_hints.types_property ~= false
+    settings["jetbrains.kotlin.hints.settings.types.variable"] = opts.inlay_hints.types_variable ~= false
+    settings["jetbrains.kotlin.hints.type.function.return"] = opts.inlay_hints.function_return ~= false
+    settings["jetbrains.kotlin.hints.type.function.parameter"] = opts.inlay_hints.function_parameter ~= false
+    settings["jetbrains.kotlin.hints.settings.lambda.return"] = opts.inlay_hints.lambda_return ~= false
+    settings["jetbrains.kotlin.hints.lambda.receivers.parameters"] = opts.inlay_hints.lambda_receivers_parameters
+      ~= false
+    settings["jetbrains.kotlin.hints.settings.value.ranges"] = opts.inlay_hints.value_ranges ~= false
+    settings["jetbrains.kotlin.hints.value.kotlin.time"] = opts.inlay_hints.kotlin_time ~= false
+  end
+
+  -- Build initialization options (sent during LSP initialization)
+  local init_options = {}
+
+  -- JDK for symbol resolution goes in init_options, not settings (matching VSCode)
   if opts.jdk_for_symbol_resolution then
-    settings.kotlinLSP = settings.kotlinLSP or {}
-    settings.kotlinLSP.jdkForSymbolResolution = opts.jdk_for_symbol_resolution
+    init_options.defaultJdk = opts.jdk_for_symbol_resolution
   end
 
   vim.lsp.config.kotlin_ls = {
@@ -387,6 +403,75 @@ function M.setup_kotlin_lsp(opts)
     filetypes = { "kotlin" },
     root_markers = root_markers,
     settings = settings,
+    init_options = init_options,
+    capabilities = {
+      textDocument = {
+        inlayHint = {
+          dynamicRegistration = true,
+        },
+      },
+    },
+    -- Handle workspace/configuration requests from the server
+    -- This is crucial for inlay hints - the server requests configuration dynamically
+    handlers = {
+      ["workspace/configuration"] = function(err, params, ctx)
+        local result = {}
+        for _, item in ipairs(params.items or {}) do
+          local section = item.section
+          
+          if section == "jetbrains.kotlin" then
+            -- Server requested the jetbrains.kotlin section
+            -- Build a nested object from our flat settings
+            local kotlin_config = { hints = {} }
+            
+            if opts.inlay_hints then
+              kotlin_config.hints = {
+                parameters = opts.inlay_hints.parameters ~= false,
+                ["parameters.compiled"] = opts.inlay_hints.parameters_compiled ~= false,
+                ["parameters.excluded"] = opts.inlay_hints.parameters_excluded == true,
+                settings = {
+                  types = {
+                    property = opts.inlay_hints.types_property ~= false,
+                    variable = opts.inlay_hints.types_variable ~= false,
+                  },
+                  lambda = {
+                    ["return"] = opts.inlay_hints.lambda_return ~= false,
+                  },
+                  value = {
+                    ranges = opts.inlay_hints.value_ranges ~= false,
+                  },
+                },
+                type = {
+                  ["function"] = {
+                    ["return"] = opts.inlay_hints.function_return ~= false,
+                    parameter = opts.inlay_hints.function_parameter ~= false,
+                  },
+                },
+                lambda = {
+                  receivers = {
+                    parameters = opts.inlay_hints.lambda_receivers_parameters ~= false,
+                  },
+                },
+                value = {
+                  kotlin = {
+                    time = opts.inlay_hints.kotlin_time ~= false,
+                  },
+                },
+              }
+            end
+            
+            table.insert(result, kotlin_config)
+          elseif section and settings[section] ~= nil then
+            -- Return the setting value for other requested sections
+            table.insert(result, settings[section])
+          else
+            -- Return nil/null for unknown sections
+            table.insert(result, vim.NIL)
+          end
+        end
+        return result
+      end,
+    },
   }
 
   vim.lsp.enable("kotlin_ls")
