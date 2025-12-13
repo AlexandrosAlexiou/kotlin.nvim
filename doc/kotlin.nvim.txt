@@ -128,6 +128,10 @@ Available Commands for Kotlin Development:
 
 `:KotlinOrganizeImports`       Organize and optimize imports in current file
 `:KotlinFormat`                Format current buffer using IntelliJ IDEA formatting
+`:KotlinSymbols`               Show document symbols/outline for current buffer
+`:KotlinWorkspaceSymbols`      Search for symbols across the entire workspace
+`:KotlinReferences`            Find all references to symbol under cursor
+`:KotlinRename`                Rename symbol under cursor across the project
 `:KotlinInlayHintsToggle`      Toggle inlay hints for current buffer
 `:KotlinHintsToggle`           Toggle HINT severity diagnostics
 `:KotlinExportWorkspaceToJson` Export workspace structure to workspace.json
@@ -147,6 +151,18 @@ Key Mapping Example: ~
     -- Format buffer
     vim.keymap.set('n', '<leader>kf', ':KotlinFormat<CR>', 
         { desc = 'Format Kotlin buffer' })
+    
+    -- Show symbols outline
+    vim.keymap.set('n', '<leader>ks', ':KotlinSymbols<CR>',
+        { desc = 'Show document symbols' })
+    
+    -- Find references
+    vim.keymap.set('n', '<leader>kr', ':KotlinReferences<CR>',
+        { desc = 'Find references' })
+    
+    -- Rename symbol
+    vim.keymap.set('n', '<leader>kn', ':KotlinRename<CR>',
+        { desc = 'Rename symbol' })
     
     -- Toggle inlay hints
     vim.keymap.set('n', '<leader>ih', function()

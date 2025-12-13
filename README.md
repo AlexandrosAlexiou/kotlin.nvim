@@ -282,6 +282,10 @@ kotlin.nvim provides several commands for working with Kotlin code:
 |---------|-------------|
 | `:KotlinOrganizeImports` | Organize and optimize imports in the current file |
 | `:KotlinFormat` | Format the current buffer using IntelliJ IDEA formatting rules |
+| `:KotlinSymbols` | Show document symbols/outline for the current buffer |
+| `:KotlinWorkspaceSymbols` | Search for symbols across the entire workspace |
+| `:KotlinReferences` | Find all references to the symbol under cursor |
+| `:KotlinRename` | Rename the symbol under cursor across the project |
 | `:KotlinInlayHintsToggle` | Toggle inlay hints on/off for the current buffer |
 | `:KotlinHintsToggle` | Toggle HINT severity diagnostics (if sent by the server) |
 | `:KotlinExportWorkspaceToJson` | Export workspace structure to `workspace.json` |
@@ -294,6 +298,15 @@ vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', { desc = 'Organi
 
 -- Format buffer
 vim.keymap.set('n', '<leader>kf', ':KotlinFormat<CR>', { desc = 'Format Kotlin buffer' })
+
+-- Show symbols
+vim.keymap.set('n', '<leader>ks', ':KotlinSymbols<CR>', { desc = 'Show document symbols' })
+
+-- Find references
+vim.keymap.set('n', '<leader>kr', ':KotlinReferences<CR>', { desc = 'Find references' })
+
+-- Rename symbol
+vim.keymap.set('n', '<leader>kn', ':KotlinRename<CR>', { desc = 'Rename symbol' })
 
 -- Toggle inlay hints
 vim.keymap.set('n', '<leader>kh', ':KotlinInlayHintsToggle<CR>', { desc = 'Toggle inlay hints' })
