@@ -71,15 +71,38 @@ Install the plugin with your package manager:
                 "mvnw",
                 "settings.gradle",
             },
-            -- Optional: Specify a custom Java path to run the server
-            -- Not required when using Mason installation (bundled JRE)
-            jre_path = os.getenv("JDK21"),
-            -- Optional: Specify additional JVM arguments
+            
+            -- Optional: Java Runtime to run the kotlin-lsp server itself
+            -- NOT REQUIRED when using Mason (kotlin-lsp v0.254+ includes bundled JRE)
+            -- Priority: 1. jre_path, 2. Bundled JRE (Mason), 3. System java
+            -- 
+            -- Use this if you want to run kotlin-lsp with a specific Java version
+            -- Must point to JAVA_HOME (directory containing bin/java)
+            -- Examples:
+            --   macOS:   "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home"
+            --   Linux:   "/usr/lib/jvm/java-21-openjdk"
+            --   Windows: "C:\\Program Files\\Java\\jdk-21"
+            --   Env var: os.getenv("JAVA_HOME") or os.getenv("JDK21")
+            jre_path = nil,  -- Use bundled JRE (recommended)
+            
+            -- Optional: JDK for symbol resolution (analyzing your Kotlin code)
+            -- This is the JDK that your project code will be analyzed against
+            -- Different from jre_path (which runs the server)
+            -- Required for: Analyzing JDK APIs, standard library symbols, platform types
+            -- 
+            -- Usually should match your project's target JDK version
+            -- Examples:
+            --   macOS:   "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home"
+            --   Linux:   "/usr/lib/jvm/java-17-openjdk"
+            --   Windows: "C:\\Program Files\\Java\\jdk-17"
+            --   SDKMAN:  os.getenv("HOME") .. "/.sdkman/candidates/java/17.0.8-tem"
+            jdk_for_symbol_resolution = nil,  -- Auto-detect from project
+            
+            -- Optional: Specify additional JVM arguments for the kotlin-lsp server
             jvm_args = {
-                "-Xmx4g",
+                "-Xmx4g",  -- Increase max heap (useful for large projects)
             },
-            -- Optional: Specify JDK for symbol resolution (requires kotlin-lsp v0.254+)
-            jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
+            
             -- Optional: Configure inlay hints (requires kotlin-lsp v0.254+)
             -- All settings default to true, set to false to disable specific hints
             inlay_hints = {
@@ -162,26 +185,76 @@ return {
 
 When using the Mason-installed kotlin-lsp (v0.254+), no separate JDK installation is required. The language server includes platform-specific builds with a bundled JRE, providing a truly zero-dependency setup experience.
 
-### JDK for Symbol Resolution
+### Understanding JRE and JDK Options
 
-The `jdk_for_symbol_resolution` option allows you to specify which JDK should be used for symbol resolution and API lookups. This is useful when:
+kotlin.nvim provides two separate Java-related configuration options that serve different purposes:
 
-- Your project targets a specific Java/JDK version (e.g., Java 17, 21)
-- You want code completion to show APIs from a specific JDK version
-- You need to resolve symbols against a particular JDK's standard library
+#### 1. `jre_path` - Java Runtime for the LSP Server
 
-**Note:** This is different from `jre_path`:
-- `jre_path`: JRE used to **run** the language server itself
-- `jdk_for_symbol_resolution`: JDK used for **analyzing** your Kotlin code and resolving Java symbols
+**Purpose:** Specifies which Java runtime should be used to **run the kotlin-lsp server process itself**.
 
-Example:
+**Priority:**
+1. `jre_path` in your config (if specified)
+2. Bundled JRE in Mason installation (kotlin-lsp v0.254+)
+3. System `java` from PATH
+
+**When to use:**
+- You want to run kotlin-lsp with a specific Java version
+- You're not using Mason, or using an older kotlin-lsp version without bundled JRE
+- You have specific JVM compatibility requirements for the server
+
+**Examples:**
 ```lua
-require("kotlin").setup {
-    -- Run the LSP with bundled JRE (automatic from Mason)
-    -- But analyze code against JDK 21 APIs
-    jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
+-- macOS
+jre_path = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home"
+
+-- Linux
+jre_path = "/usr/lib/jvm/java-21-openjdk"
+
+-- Windows
+jre_path = "C:\\Program Files\\Java\\jdk-21"
+
+-- Environment variable
+jre_path = os.getenv("JAVA_HOME")
+
+-- SDKMAN installation
+jre_path = os.getenv("HOME") .. "/.sdkman/candidates/java/21.0.1-tem"
+```
+
+**Recommendation:** Leave as `nil` to use Mason's bundled JRE (simplest setup).
+
+#### 2. `jdk_for_symbol_resolution` - JDK for Code Analysis
+
+**Purpose:** Specifies which JDK should be used to **analyze your Kotlin code** and resolve symbols/APIs.
+
+**When to use:**
+- Your project targets a specific Java version (e.g., Java 17 or 21)
+- You need code completion for JDK-specific APIs
+- You want symbol resolution against a particular JDK's standard library
+- Different projects use different JDK versions
+
+**Examples:**
+```lua
+-- Project targeting Java 17
+jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home"
+
+-- Project targeting Java 21
+jdk_for_symbol_resolution = "/usr/lib/jvm/java-21-openjdk"
+
+-- Per-project configuration (in .kotlin-lsp.lua)
+return {
+    jdk_for_symbol_resolution = "/path/to/project-specific/jdk"
 }
 ```
+
+**Recommendation:** Set this to match your project's target JDK version for accurate symbol resolution.
+
+#### Quick Reference
+
+| Option | Purpose | Default | Typical Use Case |
+|--------|---------|---------|------------------|
+| `jre_path` | Run the LSP server | Bundled JRE (Mason) | Override server runtime |
+| `jdk_for_symbol_resolution` | Analyze your code | Auto-detect | Match project JDK version |
 
 ### Enhanced Code Completion
 
