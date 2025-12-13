@@ -286,6 +286,8 @@ kotlin.nvim provides several commands for working with Kotlin code:
 | `:KotlinWorkspaceSymbols` | Search for symbols across the entire workspace |
 | `:KotlinReferences` | Find all references to the symbol under cursor |
 | `:KotlinRename` | Rename the symbol under cursor across the project |
+| `:KotlinCodeActions` | Show all available code actions from kotlin-lsp |
+| `:KotlinQuickFix` | Show quick fixes for diagnostics on current line |
 | `:KotlinInlayHintsToggle` | Toggle inlay hints on/off for the current buffer |
 | `:KotlinHintsToggle` | Toggle HINT severity diagnostics (if sent by the server) |
 | `:KotlinExportWorkspaceToJson` | Export workspace structure to `workspace.json` |
@@ -293,6 +295,10 @@ kotlin.nvim provides several commands for working with Kotlin code:
 
 **Key Mappings Example:**
 ```lua
+-- Code actions and quick fixes
+vim.keymap.set('n', '<leader>ka', ':KotlinCodeActions<CR>', { desc = 'Kotlin code actions' })
+vim.keymap.set('n', '<leader>kq', ':KotlinQuickFix<CR>', { desc = 'Kotlin quick fix' })
+
 -- Organize imports
 vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', { desc = 'Organize Kotlin imports' })
 

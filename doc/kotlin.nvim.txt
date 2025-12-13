@@ -132,10 +132,25 @@ Available Commands for Kotlin Development:
 `:KotlinWorkspaceSymbols`      Search for symbols across the entire workspace
 `:KotlinReferences`            Find all references to symbol under cursor
 `:KotlinRename`                Rename symbol under cursor across the project
+`:KotlinCodeActions`           Show all available code actions from kotlin-lsp
+`:KotlinQuickFix`              Show quick fixes for diagnostics on current line
 `:KotlinInlayHintsToggle`      Toggle inlay hints for current buffer
 `:KotlinHintsToggle`           Toggle HINT severity diagnostics
 `:KotlinExportWorkspaceToJson` Export workspace structure to workspace.json
 `:KotlinCleanWorkspace`        Clear cached indices for current project
+
+Code Actions and Quick Fixes: ~
+
+`:KotlinCodeActions` shows all available code actions from kotlin-lsp. These
+include refactorings, quick fixes, and intentions that use the new "mod
+command" system in kotlin-lsp v0.261+.
+
+`:KotlinQuickFix` filters to show only quickfix actions for diagnostics on
+the current line, making it easier to fix errors and warnings.
+
+Note: The new kotlin-lsp version uses "mod commands" instead of HINT
+diagnostics for inspections. These are available via code actions rather
+than being shown automatically as grayed-out text.
 
 Inlay Hints (LSP Protocol): ~
 `:KotlinInlayHintsToggle`          Toggle inlay hints for current buffer
@@ -144,6 +159,12 @@ Inlay Hints (LSP Protocol): ~
 
 Key Mapping Example: ~
 >lua
+    -- Code actions and quick fixes
+    vim.keymap.set('n', '<leader>ka', ':KotlinCodeActions<CR>',
+        { desc = 'Kotlin code actions' })
+    vim.keymap.set('n', '<leader>kq', ':KotlinQuickFix<CR>',
+        { desc = 'Kotlin quick fix' })
+    
     -- Organize imports
     vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', 
         { desc = 'Organize Kotlin imports' })

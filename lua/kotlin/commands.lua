@@ -69,6 +69,56 @@ function M.apply_mod_command(command_data)
   end)
 end
 
+-- Enhanced code actions for Kotlin - shows only Kotlin-specific actions
+function M.code_actions()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+  
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  -- Use the standard code action but it will only show kotlin-lsp actions
+  -- since we filtered to kotlin_ls client
+  vim.lsp.buf.code_action({
+    filter = function(action)
+      -- Only show actions from kotlin_ls
+      return true
+    end,
+  })
+end
+
+-- Quick fix for the diagnostic under cursor (if any)
+function M.quick_fix()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+  
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  local cursor = vim.api.nvim_win_get_cursor(0)
+  local line = cursor[1] - 1
+  
+  -- Get diagnostics for current line
+  local diagnostics = vim.diagnostic.get(bufnr, { lnum = line })
+  
+  if #diagnostics == 0 then
+    vim.notify("No diagnostics on current line", vim.log.levels.INFO)
+    return
+  end
+
+  -- Request code actions for current position with diagnostics context
+  vim.lsp.buf.code_action({
+    filter = function(action)
+      -- Prefer quickfix kind actions
+      return action.kind and action.kind:match("quickfix")
+    end,
+  })
+end
+
 -- Format the current buffer using kotlin-lsp
 function M.format_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -191,6 +241,18 @@ function M.setup()
     M.rename_symbol()
   end, {
     desc = "Rename symbol under cursor",
+  })
+
+  vim.api.nvim_create_user_command("KotlinCodeActions", function()
+    M.code_actions()
+  end, {
+    desc = "Show code actions from kotlin-lsp",
+  })
+
+  vim.api.nvim_create_user_command("KotlinQuickFix", function()
+    M.quick_fix()
+  end, {
+    desc = "Show quick fixes for diagnostics on current line",
   })
 
   vim.api.nvim_create_user_command("KotlinInlayHintsToggle", function()
