@@ -87,6 +87,57 @@ function M.format_buffer()
   vim.notify("Buffer formatted", vim.log.levels.INFO)
 end
 
+-- Show document symbols (outline)
+function M.document_symbols()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.document_symbol()
+end
+
+-- Search workspace symbols
+function M.workspace_symbols()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls" })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not running", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.workspace_symbol()
+end
+
+-- Find all references to symbol under cursor
+function M.find_references()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.references()
+end
+
+-- Rename symbol under cursor
+function M.rename_symbol()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.rename()
+end
+
 -- Toggle inlay hints for the current buffer
 function M.toggle_inlay_hints()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -116,6 +167,30 @@ function M.setup()
     M.format_buffer()
   end, {
     desc = "Format the current Kotlin buffer",
+  })
+
+  vim.api.nvim_create_user_command("KotlinSymbols", function()
+    M.document_symbols()
+  end, {
+    desc = "Show document symbols (outline) for current buffer",
+  })
+
+  vim.api.nvim_create_user_command("KotlinWorkspaceSymbols", function()
+    M.workspace_symbols()
+  end, {
+    desc = "Search symbols across the workspace",
+  })
+
+  vim.api.nvim_create_user_command("KotlinReferences", function()
+    M.find_references()
+  end, {
+    desc = "Find all references to symbol under cursor",
+  })
+
+  vim.api.nvim_create_user_command("KotlinRename", function()
+    M.rename_symbol()
+  end, {
+    desc = "Rename symbol under cursor",
   })
 
   vim.api.nvim_create_user_command("KotlinInlayHintsToggle", function()
