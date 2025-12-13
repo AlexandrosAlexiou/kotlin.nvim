@@ -147,7 +147,56 @@ function M.document_symbols()
     return
   end
 
-  vim.lsp.buf.document_symbol()
+  -- Request symbols and show in trouble
+  local params = { textDocument = vim.lsp.util.make_text_document_params(bufnr) }
+  
+  clients[1].request('textDocument/documentSymbol', params, function(err, result)
+    if err then
+      vim.notify("Failed to get symbols: " .. vim.inspect(err), vim.log.levels.ERROR)
+      return
+    end
+    
+    if not result or vim.tbl_isempty(result) then
+      vim.notify("No symbols found", vim.log.levels.INFO)
+      return
+    end
+    
+    -- Convert symbols to quickfix/location list format
+    local function flatten_symbols(symbols, items, parent_name)
+      items = items or {}
+      parent_name = parent_name or ""
+      
+      for _, symbol in ipairs(symbols) do
+        local name = symbol.name
+        if parent_name ~= "" then
+          name = parent_name .. "." .. name
+        end
+        
+        -- Add the symbol
+        local range = symbol.selectionRange or symbol.range or symbol.location.range
+        table.insert(items, {
+          bufnr = bufnr,
+          lnum = range.start.line + 1,
+          col = range.start.character + 1,
+          text = name .. " [" .. (symbol.kind or "") .. "]",
+        })
+        
+        -- Recursively add children
+        if symbol.children then
+          flatten_symbols(symbol.children, items, name)
+        end
+      end
+      
+      return items
+    end
+    
+    local items = flatten_symbols(result)
+    
+    -- Set location list and open with trouble
+    vim.fn.setloclist(0, items, 'r')
+    vim.fn.setloclist(0, {}, 'a', { title = 'Document Symbols' })
+    require("trouble").open("loclist")
+  end, bufnr)
 end
 
 -- Search workspace symbols

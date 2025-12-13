@@ -56,12 +56,23 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 
 Install the plugin with your package manager:
 
+**Dependencies:**
+- [mason.nvim](https://github.com/williamboman/mason.nvim) - LSP installer
+- [mason-lspconfig.nvim](https://github.com/williamboman/mason-lspconfig.nvim) - Mason LSP integration
+- [oil.nvim](https://github.com/stevearc/oil.nvim) - File explorer for package navigation (used by "Go to Definition" on package declarations)
+- [trouble.nvim](https://github.com/folke/trouble.nvim) - Enhanced quickfix/location list UI (required for `:KotlinSymbols` and `:KotlinWorkspaceSymbols` commands to display document outline and workspace symbols)
+
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 ```lua
 {
     "AlexandrosAlexiou/kotlin.nvim",
     ft = { "kotlin" },
-    dependencies = { "mason.nvim", "mason-lspconfig.nvim", "oil.nvim" },
+    dependencies = {
+        "mason.nvim",
+        "mason-lspconfig.nvim",
+        "oil.nvim",
+        "trouble.nvim",  -- Required for :KotlinSymbols command
+    },
     config = function()
         require("kotlin").setup {
             -- Optional: Specify root markers for multi-module projects
@@ -71,11 +82,11 @@ Install the plugin with your package manager:
                 "mvnw",
                 "settings.gradle",
             },
-            
+
             -- Optional: Java Runtime to run the kotlin-lsp server itself
             -- NOT REQUIRED when using Mason (kotlin-lsp v0.254+ includes bundled JRE)
             -- Priority: 1. jre_path, 2. Bundled JRE (Mason), 3. System java
-            -- 
+            --
             -- Use this if you want to run kotlin-lsp with a specific Java version
             -- Must point to JAVA_HOME (directory containing bin/java)
             -- Examples:
@@ -84,12 +95,12 @@ Install the plugin with your package manager:
             --   Windows: "C:\\Program Files\\Java\\jdk-21"
             --   Env var: os.getenv("JAVA_HOME") or os.getenv("JDK21")
             jre_path = nil,  -- Use bundled JRE (recommended)
-            
+
             -- Optional: JDK for symbol resolution (analyzing your Kotlin code)
             -- This is the JDK that your project code will be analyzed against
             -- Different from jre_path (which runs the server)
             -- Required for: Analyzing JDK APIs, standard library symbols, platform types
-            -- 
+            --
             -- Usually should match your project's target JDK version
             -- Examples:
             --   macOS:   "/Library/Java/JavaVirtualMachines/jdk-17.jdk/Contents/Home"
@@ -97,18 +108,18 @@ Install the plugin with your package manager:
             --   Windows: "C:\\Program Files\\Java\\jdk-17"
             --   SDKMAN:  os.getenv("HOME") .. "/.sdkman/candidates/java/17.0.8-tem"
             jdk_for_symbol_resolution = nil,  -- Auto-detect from project
-            
+
             -- Optional: Specify additional JVM arguments for the kotlin-lsp server
             jvm_args = {
                 "-Xmx4g",  -- Increase max heap (useful for large projects)
             },
-            
+
             -- Optional: Configure inlay hints (requires kotlin-lsp v0.254+)
             -- All settings default to true, set to false to disable specific hints
             inlay_hints = {
                 enabled = true,  -- Enable inlay hints (auto-enable on LSP attach)
                 parameters = true,  -- Show parameter names
-                parameters_compiled = true,  -- Show compiled parameter names  
+                parameters_compiled = true,  -- Show compiled parameter names
                 parameters_excluded = false,  -- Show excluded parameter names
                 types_property = true,  -- Show property types
                 types_variable = true,  -- Show local variable types
@@ -138,12 +149,12 @@ Create a `.kotlin-lsp.lua` file in your project root:
 return {
     -- This project targets JDK 21
     jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
-    
+
     -- Override inlay hints for this project
     inlay_hints = {
         enabled = false,  -- Disable inlay hints for this specific project
     },
-    
+
     -- Project-specific JVM args
     jvm_args = {
         "-Xmx2g",  -- Less memory for smaller project
@@ -287,22 +298,22 @@ All settings default to `true` except `parameters_excluded`. Only specify settin
 require("kotlin").setup {
     inlay_hints = {
         enabled = true,  -- Master switch: enable/disable all inlay hints
-        
+
         -- Parameter hints (show parameter names in function calls)
         parameters = true,  -- foo(name: "value", age: 42)
         parameters_compiled = true,  -- Show parameter names for compiled code
         parameters_excluded = false,  -- Show hints for excluded parameters (usually false)
-        
+
         -- Type hints (show inferred types)
         types_property = true,  -- val name: String = "foo"
         types_variable = true,  -- val count: Int = 42
         function_return = true,  -- fun foo(): String { }
         function_parameter = true,  -- fun foo(name: String) { }
-        
+
         -- Lambda hints
         lambda_return = true,  -- { x -> x * 2 }: (Int) -> Int
         lambda_receivers_parameters = true,  -- Show receivers and parameters
-        
+
         -- Other hints
         value_ranges = true,  -- Show hints for ranges
         kotlin_time = true,  -- Show kotlin.time warnings
@@ -355,8 +366,8 @@ kotlin.nvim provides several commands for working with Kotlin code:
 |---------|-------------|
 | `:KotlinOrganizeImports` | Organize and optimize imports in the current file |
 | `:KotlinFormat` | Format the current buffer using IntelliJ IDEA formatting rules |
-| `:KotlinSymbols` | Show document symbols/outline for the current buffer |
-| `:KotlinWorkspaceSymbols` | Search for symbols across the entire workspace |
+| `:KotlinSymbols` | Show document symbols/outline for the current buffer (displays in trouble.nvim window) |
+| `:KotlinWorkspaceSymbols` | Search for symbols across the entire workspace (displays in trouble.nvim window) |
 | `:KotlinReferences` | Find all references to the symbol under cursor |
 | `:KotlinRename` | Rename the symbol under cursor across the project |
 | `:KotlinCodeActions` | Show all available code actions from kotlin-lsp |
@@ -365,6 +376,9 @@ kotlin.nvim provides several commands for working with Kotlin code:
 | `:KotlinHintsToggle` | Toggle HINT severity diagnostics (if sent by the server) |
 | `:KotlinExportWorkspaceToJson` | Export workspace structure to `workspace.json` |
 | `:KotlinCleanWorkspace` | Clear cached indices for the current project |
+
+> [!note]
+> `:KotlinSymbols` and `:KotlinWorkspaceSymbols` require [trouble.nvim](https://github.com/folke/trouble.nvim) to display results in a clean, interactive window. These commands provide a better alternative to traditional location lists for browsing code structure.
 
 **Key Mappings Example:**
 ```lua
