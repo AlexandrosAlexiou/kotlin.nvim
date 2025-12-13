@@ -124,12 +124,31 @@ Complete Example: ~
 
 Commands: ~
 
+Available Commands for Kotlin Development:
+
+`:KotlinOrganizeImports`       Organize and optimize imports in current file
+`:KotlinFormat`                Format current buffer using IntelliJ IDEA formatting
+`:KotlinInlayHintsToggle`      Toggle inlay hints for current buffer
+`:KotlinHintsToggle`           Toggle HINT severity diagnostics
+`:KotlinExportWorkspaceToJson` Export workspace structure to workspace.json
+`:KotlinCleanWorkspace`        Clear cached indices for current project
+
+Inlay Hints (LSP Protocol): ~
 `:KotlinInlayHintsToggle`          Toggle inlay hints for current buffer
 `:lua vim.lsp.inlay_hint.enable(true)`   Enable inlay hints
 `:lua vim.lsp.inlay_hint.enable(false)`  Disable inlay hints
 
 Key Mapping Example: ~
 >lua
+    -- Organize imports
+    vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', 
+        { desc = 'Organize Kotlin imports' })
+    
+    -- Format buffer
+    vim.keymap.set('n', '<leader>kf', ':KotlinFormat<CR>', 
+        { desc = 'Format Kotlin buffer' })
+    
+    -- Toggle inlay hints
     vim.keymap.set('n', '<leader>ih', function()
         vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
     end, { desc = 'Toggle inlay hints' })

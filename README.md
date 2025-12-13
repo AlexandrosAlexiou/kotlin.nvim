@@ -26,7 +26,9 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 
 - [x] Decompile and open class file contents using kotlin-lsp `decompile` command
 - [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
-- [x] Toggle hints using the `KotlinHintsToggle` command
+- [x] Organize imports with `KotlinOrganizeImports` command
+- [x] Format code with `KotlinFormat` command (uses IntelliJ IDEA formatting)
+- [x] Toggle diagnostic hints using the `KotlinHintsToggle` command
 - [x] Full support for LSP inlay hints with fine-grained configuration
 - [x] JDK version specification for symbol resolution
 - [x] Support for custom JVM arguments
@@ -46,6 +48,9 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 
 > [!note]
 > Inlay hints require kotlin-lsp **v0.254+** and are configured using the exact format from the VSCode extension.
+
+> [!note]
+> Code formatting and organize imports require kotlin-lsp **v0.253+** with IntelliJ IDEA-based formatting support.
 
 ## 📦 Installation
 
@@ -268,6 +273,31 @@ end, { desc = 'Toggle inlay hints' })
 #### Implementation Note
 
 Inlay hints work by implementing a `workspace/configuration` handler that responds to server requests for the `jetbrains.kotlin` configuration section. The handler builds a properly nested configuration object matching the VSCode extension format. This is crucial because kotlin-lsp requests configuration dynamically rather than using only the initial settings.
+
+### Available Commands
+
+kotlin.nvim provides several commands for working with Kotlin code:
+
+| Command | Description |
+|---------|-------------|
+| `:KotlinOrganizeImports` | Organize and optimize imports in the current file |
+| `:KotlinFormat` | Format the current buffer using IntelliJ IDEA formatting rules |
+| `:KotlinInlayHintsToggle` | Toggle inlay hints on/off for the current buffer |
+| `:KotlinHintsToggle` | Toggle HINT severity diagnostics (if sent by the server) |
+| `:KotlinExportWorkspaceToJson` | Export workspace structure to `workspace.json` |
+| `:KotlinCleanWorkspace` | Clear cached indices for the current project |
+
+**Key Mappings Example:**
+```lua
+-- Organize imports
+vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', { desc = 'Organize Kotlin imports' })
+
+-- Format buffer
+vim.keymap.set('n', '<leader>kf', ':KotlinFormat<CR>', { desc = 'Format Kotlin buffer' })
+
+-- Toggle inlay hints
+vim.keymap.set('n', '<leader>kh', ':KotlinInlayHintsToggle<CR>', { desc = 'Toggle inlay hints' })
+```
 
 ### Shared Indices
 
