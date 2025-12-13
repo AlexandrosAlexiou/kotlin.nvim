@@ -3,6 +3,7 @@ Table of Contents                                                     *kotlin.nv
 
 Introduction ··························································· |kotlin.nvim.intro|
 Plugin Configuration ·················································· |kotlin.nvim.config|
+Per-Project Configuration ··········································· |kotlin.nvim.perproject|
 LSP Extensions ···················································· |kotlin.nvim.extensions|
 Toggle Hints ··························································· |kotlin.nvim.hints|
 Workspace Management ··············································· |kotlin.nvim.workspace|
@@ -15,7 +16,92 @@ Introduction                                                       kotlin.nvim.i
 This plugin provides advanced Kotlin support for Neovim, integrating with
 `kotlin-ls`, JetBrains' Kotlin Language Server. It offers essential features
 such as class file decompilation, workspace export, diagnostic hint toggling,
-and per-project workspace isolation.
+inlay hints configuration, and per-project workspace isolation.
+
+==========================================================================================
+
+Plugin Configuration                                                *kotlin.nvim.config*
+
+kotlin.nvim supports the following configuration options:
+
+setup({opts})                                                          *kotlin.setup*
+    Configure kotlin.nvim with the specified options.
+
+    Parameters: ~
+        {opts}  (table) Configuration options:
+            • root_markers: List of files to identify project root
+            • jre_path: Path to JRE for running the language server
+            • jvm_args: Additional JVM arguments for the language server
+            • jdk_for_symbol_resolution: Path to JDK for symbol resolution
+                (typically the JDK installation path, e.g., "/path/to/jdk-21")
+                This determines which JDK APIs and libraries are used for
+                code completion and symbol resolution
+            • inlay_hints: Configuration for inlay hints (see |kotlin.nvim.inlayhints|)
+
+    Example: ~
+>lua
+        require("kotlin").setup {
+            root_markers = { "gradlew", ".git", "settings.gradle" },
+            jre_path = "/path/to/jre",
+            jvm_args = { "-Xmx4g" },
+            jdk_for_symbol_resolution = "/path/to/jdk",
+            inlay_hints = {
+                parameterHints = { enabled = true },
+                typeHints = { enabled = true },
+                chainedHints = { enabled = true },
+            },
+            },
+        }
+<
+
+==========================================================================================
+
+Per-Project Configuration                                          *kotlin.nvim.perproject*
+
+kotlin.nvim supports per-project configuration to handle different JDK versions,
+memory requirements, or other settings across different Kotlin projects.
+
+Configuration File: ~
+
+Create a `.kotlin-lsp.lua` file in your project root directory. This file
+should return a Lua table with the same structure as the global setup options.
+
+Example `.kotlin-lsp.lua`: ~
+>lua
+    -- Project-specific Kotlin LSP configuration
+    return {
+        jdk_for_symbol_resolution = "/path/to/jdk-21",
+        inlay_hints = {
+            enabled = false,
+        },
+        jvm_args = {
+            "-Xmx2g",
+        },
+    }
+<
+
+Behavior: ~
+
+• Global configuration from `require("kotlin").setup()` applies to all projects
+• Project configuration from `.kotlin-lsp.lua` overrides global settings
+• Settings are deep-merged, with project settings taking precedence
+• The file is loaded when opening a Kotlin file in that project directory
+
+Common Use Cases: ~
+
+1. Different JDK versions per project:
+   Project A targets JDK 11, Project B targets JDK 21
+
+2. Memory allocation:
+   Large monorepos need more memory than small projects
+
+3. Inlay hints preferences:
+   Enable for some projects, disable for others
+
+Note: ~
+
+You can add `.kotlin-lsp.lua` to `.gitignore` for developer-specific settings,
+or commit it to share configuration across your team.
 
 ==========================================================================================
 

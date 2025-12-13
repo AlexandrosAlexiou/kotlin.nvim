@@ -27,16 +27,21 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 - [x] Decompile and open class file contents using kotlin-lsp `decompile` command
 - [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
 - [x] Toggle hints using the `KotlinHintsToggle` command
+- [x] JDK version specification for symbol resolution
 - [x] Support for custom JVM arguments
 - [x] Support kotlin-lsp installation from [Mason][6]
 - [x] Navigate to package folders from package declarations (opens the folder view with [oil.nvim][11] using LSP "go to definition")
 - [x] Automatic per-project workspace isolation to prevent LSP conflicts and improve performance
   - Use `KotlinCleanWorkspace` command to clear cached indices for the current project
+- [x] Per-project LSP configuration via `.kotlin-lsp.lua` file
 - [x] Per-project LSP disabling via marker file
   - Create a `.disable-kotlin-lsp` file in the project root to prevent the Kotlin LSP from being registered
 
 > [!note]
 > Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
+
+> [!note]
+> Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp v0.254+ or later).
 
 ## 📦 Installation
 
@@ -58,16 +63,114 @@ Install the plugin with your package manager:
                 "settings.gradle",
             },
             -- Optional: Specify a custom Java path to run the server
+            -- Not required when using Mason installation (bundled JRE)
             jre_path = os.getenv("JDK21"),
             -- Optional: Specify additional JVM arguments
             jvm_args = {
                 "-Xmx4g",
             },
+            -- Optional: Specify JDK for symbol resolution (requires kotlin-lsp v0.254+)
+            -- This specifies which JDK to use for resolving symbols and APIs
+            -- Can be a path to JDK installation (e.g., "/path/to/jdk-21")
+            -- or potentially a version string depending on kotlin-lsp implementation
+            jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
         }
     end,
 },
 
 ```
+
+## 🔧 Per-Project Configuration
+
+Since different projects may target different JDK versions or require different settings, kotlin.nvim supports per-project configuration via a `.kotlin-lsp.lua` file in your project root.
+
+### Example: `.kotlin-lsp.lua`
+
+Create a `.kotlin-lsp.lua` file in your project root:
+
+```lua
+-- Project-specific Kotlin LSP configuration
+return {
+    -- This project targets JDK 21
+    jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
+    
+    -- Override inlay hints for this project
+    inlay_hints = {
+        enabled = false,  -- Disable inlay hints for this specific project
+    },
+    
+    -- Project-specific JVM args
+    jvm_args = {
+        "-Xmx2g",  -- Less memory for smaller project
+    },
+}
+```
+
+### How It Works
+
+1. **Global config** in your Neovim setup (applies to all projects)
+2. **Project config** in `.kotlin-lsp.lua` (overrides global for that project)
+3. Project settings are merged with global settings, with project taking precedence
+
+### Common Use Cases
+
+**Multi-project workspace with different JDK targets:**
+```
+~/projects/
+  ├── legacy-app/              # Uses JDK 11
+  │   └── .kotlin-lsp.lua      # jdk_for_symbol_resolution = "/path/to/jdk-11"
+  └── modern-app/              # Uses JDK 21
+      └── .kotlin-lsp.lua      # jdk_for_symbol_resolution = "/path/to/jdk-21"
+```
+
+**Project with specific memory requirements:**
+```lua
+-- .kotlin-lsp.lua for large monorepo
+return {
+    jvm_args = { "-Xmx8g" },  -- More memory for large codebase
+}
+```
+
+> [!tip]
+> Add `.kotlin-lsp.lua` to your `.gitignore` if settings are developer-specific, or commit it if the entire team should use the same configuration.
+
+## ✨ Features
+
+### Zero-Dependency Installation
+
+When using the Mason-installed kotlin-lsp (v0.254+), no separate JDK installation is required. The language server includes platform-specific builds with a bundled JRE, providing a truly zero-dependency setup experience.
+
+### JDK for Symbol Resolution
+
+The `jdk_for_symbol_resolution` option allows you to specify which JDK should be used for symbol resolution and API lookups. This is useful when:
+
+- Your project targets a specific Java/JDK version (e.g., Java 17, 21)
+- You want code completion to show APIs from a specific JDK version
+- You need to resolve symbols against a particular JDK's standard library
+
+**Note:** This is different from `jre_path`:
+- `jre_path`: JRE used to **run** the language server itself
+- `jdk_for_symbol_resolution`: JDK used for **analyzing** your Kotlin code and resolving Java symbols
+
+Example:
+```lua
+require("kotlin").setup {
+    -- Run the LSP with bundled JRE (automatic from Mason)
+    -- But analyze code against JDK 21 APIs
+    jdk_for_symbol_resolution = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home",
+}
+```
+
+### Enhanced Code Completion
+
+The latest kotlin-lsp versions offer significantly improved code completion:
+- Suggestion ordering on par with IntelliJ IDEA
+- ~30% better completion latency
+- More relevant and context-aware suggestions
+
+### Shared Indices
+
+Indices are now stored in a dedicated folder and properly shared between multiple projects and language server instances, improving performance and reducing disk usage.
 
 ## 📥 Language Server Installation
 
@@ -81,7 +184,9 @@ You can easily install kotlin-lsp using [Mason][6] with the following command:
 :MasonInstall kotlin-lsp
 ```
 
-This is the recommended approach as Mason handles the installation automatically.
+This is the recommended approach as Mason handles the installation automatically and includes platform-specific builds with a bundled JRE (zero-dependency installation). **No separate JDK installation is required** when using the Mason-installed kotlin-lsp.
+
+The plugin will automatically detect and use the bundled JRE from the Mason installation, providing a seamless zero-configuration experience.
 
 ### Option 2: Manual Installation
 
@@ -99,8 +204,17 @@ $KOTLIN_LSP_DIR/
     └── ... (jar files)
 ```
 
+For manual installations, you'll need to provide a JRE either through:
+- The `jre_path` configuration option
+- The `JAVA_HOME` environment variable
+- A system-wide `java` installation
+
 > [!tip]
-> The plugin first checks for Mason installations, then falls back to the `KOTLIN_LSP_DIR` environment variable if Mason isn't available or kotlin-lsp isn't installed through it.
+> The plugin automatically prioritizes JRE selection in this order:
+> 1. User-specified `jre_path` in configuration
+> 2. Bundled JRE from Mason kotlin-lsp installation (zero-dependency)
+> 3. `JAVA_HOME` environment variable
+> 4. System-wide `java` installation
 
 > [!caution]
 > If you use other tools like [nvim-lspconfig][8] or [mason-lspconfig][7], make sure to explicitly exclude the `kotlin_lsp` configuration there to avoid conflicts.
