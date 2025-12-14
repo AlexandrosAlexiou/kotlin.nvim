@@ -456,6 +456,7 @@ For manual installations, you'll need to provide a JRE either through:
 - [kotlin-vscode][5]
 - [rustaceanvim][10]
 - [oil.nvim][11]
+- [trouble.nvim][12]
 
 [1]: https://microsoft.github.io/language-server-protocol/
 [2]: https://neovim.io/
@@ -468,6 +469,8 @@ For manual installations, you'll need to provide a JRE either through:
 [9]: https://github.com/Kotlin/kotlin-lsp/blob/main/scripts/neovim.md
 [10]: https://github.com/mrcjkb/rustaceanvim
 [11]: https://github.com/stevearc/oil.nvim
+[12]: https://github.com/folke/trouble.nvim
+
 <!-- MARKDOWN LINKS & IMAGES -->
 [neovim-shield]: https://img.shields.io/badge/NeoVim-%2357A143.svg?&style=for-the-badge&logo=neovim&logoColor=white
 [neovim-url]: https://neovim.io/
