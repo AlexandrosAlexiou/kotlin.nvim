@@ -41,16 +41,11 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
   - Create a `.disable-kotlin-lsp` file in the project root to prevent the Kotlin LSP from being registered
 
 > [!note]
-> Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
-
-> [!note]
-> Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
-
-> [!note]
-> Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
-
-> [!note]
-> Code formatting and organize imports require kotlin-lsp **v0.253+** with IntelliJ IDEA-based formatting support.
+> **Version Requirements:**
+> - Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
+> - Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
+> - Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
+> - Code formatting and organize imports require kotlin-lsp **v0.253+** with IntelliJ IDEA-based formatting support.
 
 ## 📦 Installation
 
