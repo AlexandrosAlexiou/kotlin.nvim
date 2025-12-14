@@ -44,10 +44,10 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 > Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
 
 > [!note]
-> Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp v0.254+ or later).
+> Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
 
 > [!note]
-> Inlay hints require kotlin-lsp **v0.254+** and are configured using the exact format from the VSCode extension.
+> Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
 
 > [!note]
 > Code formatting and organize imports require kotlin-lsp **v0.253+** with IntelliJ IDEA-based formatting support.
@@ -84,7 +84,7 @@ Install the plugin with your package manager:
             },
 
             -- Optional: Java Runtime to run the kotlin-lsp server itself
-            -- NOT REQUIRED when using Mason (kotlin-lsp v0.254+ includes bundled JRE)
+            -- NOT REQUIRED when using Mason (kotlin-lsp v261+ includes bundled JRE)
             -- Priority: 1. jre_path, 2. Bundled JRE (Mason), 3. System java
             --
             -- Use this if you want to run kotlin-lsp with a specific Java version
@@ -114,7 +114,7 @@ Install the plugin with your package manager:
                 "-Xmx4g",  -- Increase max heap (useful for large projects)
             },
 
-            -- Optional: Configure inlay hints (requires kotlin-lsp v0.254+)
+            -- Optional: Configure inlay hints (requires kotlin-lsp v261+)
             -- All settings default to true, set to false to disable specific hints
             inlay_hints = {
                 enabled = true,  -- Enable inlay hints (auto-enable on LSP attach)
@@ -194,7 +194,7 @@ return {
 
 ### Zero-Dependency Installation
 
-When using the Mason-installed kotlin-lsp (v0.254+), no separate JDK installation is required. The language server includes platform-specific builds with a bundled JRE, providing a truly zero-dependency setup experience.
+When using the Mason-installed kotlin-lsp (v261+), no separate JDK installation is required. The language server includes platform-specific builds with a bundled JRE, providing a truly zero-dependency setup experience.
 
 ### Understanding JRE and JDK Options
 
@@ -206,7 +206,7 @@ kotlin.nvim provides two separate Java-related configuration options that serve 
 
 **Priority:**
 1. `jre_path` in your config (if specified)
-2. Bundled JRE in Mason installation (kotlin-lsp v0.254+)
+2. Bundled JRE in Mason installation (kotlin-lsp v261+)
 3. System `java` from PATH
 
 **When to use:**
