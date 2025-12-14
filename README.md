@@ -66,7 +66,7 @@ Install the plugin with your package manager:
         "mason.nvim",
         "mason-lspconfig.nvim",
         "oil.nvim",
-        "trouble.nvim",  -- Required for :KotlinSymbols command
+        "trouble.nvim",
     },
     config = function()
         require("kotlin").setup {
