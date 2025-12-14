@@ -2,7 +2,7 @@
 <br />
 <div align="center">
   <a href="https://github.com/AlexandrosAlexiou/kotlin.nvim">
-    <img src="./kotlin.nvim.svg" alt="rustaceanvim">
+    <img src="./kodee.svg" alt="kotlin.nvim" width="250">
   </a>
   <p align="center">
     <br />
