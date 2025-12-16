@@ -1,0 +1,111 @@
+name: Bug Report
+description: Report a problem with kotlin.nvim
+labels: [bug]
+body:
+
+  - type: checkboxes
+    attributes:
+      label: Have you read the docs and searched existing issues?
+      description: |
+        Please check all of the below that are applicable before submitting an issue.
+        
+        > [!WARNING]
+        >
+        > **Low effort issues will be closed!**
+        >
+        > Please read the checklist items carefully before marking them as done.
+        > I cannot bisect your plugins and config for you!
+      options:
+        - label: I have read the README.
+          required: true
+        - label: I am using the latest kotlin.nvim release.
+          required: true
+        - label: I have searched [existing issues](https://github.com/AlexandrosAlexiou/kotlin.nvim/issues?q=is%3Aopen+is%3Aissue+label%3Abug).
+          required: true
+        - label: I have searched [existing discussions](https://github.com/AlexandrosAlexiou/kotlin.nvim/discussions).
+          required: true
+        - label: I have searched the existing issues of other plugins related to this issue (if applicable).
+          required: false
+        - label: I have searched the [existing kotlin-lsp issues](https://github.com/Kotlin/kotlin-lsp/issues?q=is%3Aissue+) (if applicable).
+          required: false
+        - label: I can reproduce the issue with stable Neovim (not a distribution or nightly) and a minimal config. **Do not open issues here if you are using a distro (like LazyVim) to reproduce.**
+          required: true
+        - label: This is an issue about kotlin.nvim, not kotlin-lsp or Neovim.
+          required: true
+  - type: input
+    attributes:
+      label: "Neovim version (nvim -v)"
+      placeholder: "v0.10.1"
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: "Operating system/version"
+      placeholder: "NixOS 24.05"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: "Output of :checkhealth kotlin (if available)"
+      render: "console"
+      placeholder: |
+        Please paste the output here, as it may contain important information for debugging.
+    validations:
+      required: false
+  - type: textarea
+    attributes:
+      label: "How to reproduce the issue"
+      description: |
+        Steps to reproduce.
+        
+        > [!IMPORTANT]
+        >
+        > - To rule out another plugin causing the issue, please start with a minimal config.
+        > - Please provide exact (repeatable) steps, including project initialization (if applicable).
+        > - Avoid screenshots when possible, as they are hard to read and (more importantly) don't allow others to copy-and-paste your code.
+      placeholder: |
+        mkdir -p /tmp/minimal
+        nvim -u minimal.lua
+        :edit foo.kt
+        -- Add your reproduction steps here
+      render: "console"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: "Expected behaviour"
+      description: "Describe the behaviour you expect. May include logs, images, or videos."
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: "Actual behaviour"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: "The minimal config used to reproduce this issue."
+      description: |
+        Run with `nvim -u minimal.lua`
+
+        > [!IMPORTANT]
+        > 
+        > - Reduce your code to the minimum required to reproduce.
+        > - Avoid screenshots when possible, as they are hard to read and (more importantly) don't allow others to copy-and-paste your code.
+
+      placeholder: |
+        vim.env.LAZY_STDPATH = '.repro'
+        load(vim.fn.system('curl -s https://raw.githubusercontent.com/folke/lazy.nvim/main/bootstrap.lua'))()
+
+        require('lazy.minit').repro {
+          spec = {
+            {
+              'AlexandrosAlexiou/kotlin.nvim',
+              ft = 'kotlin',
+            },
+          },
+        }
+        -- do anything else you need to do to reproduce the issue
+      render: "Lua"
+    validations:
+      required: true

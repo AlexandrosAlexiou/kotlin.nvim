@@ -1,0 +1,25 @@
+---
+labels: [Ideas]
+body:
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checked other resources
+      description: Please confirm and check all the following options.
+      options:
+        - label: This is not a bug report or a question (Please use [issues](https://github.com/AlexandrosAlexiou/kotlin.nvim/issues/new/choose) for those).
+          required: true
+        - label: I have searched [existing discussions](https://github.com/AlexandrosAlexiou/kotlin.nvim/discussions/categories/ideas).
+          required: true
+        - label: I have searched [existing issues](https://github.com/AlexandrosAlexiou/kotlin.nvim/issues?q=is%3Aopen+is%3Aissue+label%3Aenhancement).
+          required: true
+        - label: This cannot be implemented in [kotlin-lsp](https://github.com/Kotlin/kotlin-lsp/issues).
+          required: true
+        - label: I have added a very descriptive title to this feature request.
+          required: true
+  - type: textarea
+    attributes:
+      label: "Feature description"
+    validations:
+      required: true

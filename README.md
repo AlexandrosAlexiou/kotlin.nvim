@@ -7,6 +7,13 @@
   <p align="center">
     <br />
     <a href="./doc/kotlin.nvim.txt"><strong>Explore the docs »</strong></a>
+    <br />
+    <br />
+    <a href="https://github.com/AlexandrosAlexiou/kotlin.nvim/issues/new?assignees=&labels=bug&projects=&template=bug_report.yml">Report Bug</a>
+    ·
+    <a href="https://github.com/AlexandrosAlexiou/kotlin.nvim/discussions/new?category=ideas">Request Feature</a>
+    ·
+    <a href="https://github.com/AlexandrosAlexiou/kotlin.nvim/discussions/new?category=q-a">Ask Question</a>
   </p>
   <p>
 <strong>
