@@ -41,6 +41,8 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 - [x] Support for custom JVM arguments
 - [x] Support kotlin-lsp installation from [Mason][6]
 - [x] Navigate to package folders from package declarations (opens the folder view with [oil.nvim][11] using LSP "go to definition")
+- [x] "Go to Type Definition" and "Go to Implementation" support (kotlin-lsp v262+)
+- [x] Maven project import support (kotlin-lsp v262+)
 - [x] Automatic per-project workspace isolation to prevent LSP conflicts and improve performance
   - Use `KotlinCleanWorkspace` command to clear cached indices for the current project
 - [x] Per-project LSP configuration via `.kotlin-lsp.lua` file
@@ -53,6 +55,8 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 > - Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
 > - Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
 > - Code formatting and organize imports require kotlin-lsp **v0.253+** with IntelliJ IDEA-based formatting support.
+> - "Go to Type Definition" and "Go to Implementation" require kotlin-lsp **v262+**.
+> - Maven project import is supported starting from kotlin-lsp **v262+**.
 
 ## 📦 Installation
 
@@ -370,6 +374,8 @@ kotlin.nvim provides several commands for working with Kotlin code:
 | `:KotlinFormat` | Format the current buffer using IntelliJ IDEA formatting rules |
 | `:KotlinSymbols` | Show document symbols/outline for the current buffer (displays in trouble.nvim window) |
 | `:KotlinWorkspaceSymbols` | Search for symbols across the entire workspace (displays in trouble.nvim window) |
+| `:KotlinTypeDefinition` | Go to the type definition of the symbol under cursor (v262+) |
+| `:KotlinImplementation` | Go to the implementation of the symbol under cursor (v262+) |
 | `:KotlinReferences` | Find all references to the symbol under cursor |
 | `:KotlinRename` | Rename the symbol under cursor across the project |
 | `:KotlinCodeActions` | Show all available code actions from kotlin-lsp |
@@ -387,6 +393,12 @@ kotlin.nvim provides several commands for working with Kotlin code:
 -- Code actions and quick fixes
 vim.keymap.set('n', '<leader>ka', ':KotlinCodeActions<CR>', { desc = 'Kotlin code actions' })
 vim.keymap.set('n', '<leader>kq', ':KotlinQuickFix<CR>', { desc = 'Kotlin quick fix' })
+
+-- Go to type definition
+vim.keymap.set('n', '<leader>kt', ':KotlinTypeDefinition<CR>', { desc = 'Go to type definition' })
+
+-- Go to implementation
+vim.keymap.set('n', '<leader>ki', ':KotlinImplementation<CR>', { desc = 'Go to implementation' })
 
 -- Organize imports
 vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', { desc = 'Organize Kotlin imports' })

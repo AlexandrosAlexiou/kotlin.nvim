@@ -224,6 +224,32 @@ function M.find_references()
   vim.lsp.buf.references()
 end
 
+-- Go to type definition of symbol under cursor
+function M.type_definition()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.type_definition()
+end
+
+-- Go to implementation of symbol under cursor
+function M.implementation()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.implementation()
+end
+
 -- Rename symbol under cursor
 function M.rename_symbol()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -278,6 +304,18 @@ function M.setup()
     M.workspace_symbols()
   end, {
     desc = "Search symbols across the workspace",
+  })
+
+  vim.api.nvim_create_user_command("KotlinTypeDefinition", function()
+    M.type_definition()
+  end, {
+    desc = "Go to type definition of symbol under cursor",
+  })
+
+  vim.api.nvim_create_user_command("KotlinImplementation", function()
+    M.implementation()
+  end, {
+    desc = "Go to implementation of symbol under cursor",
   })
 
   vim.api.nvim_create_user_command("KotlinReferences", function()

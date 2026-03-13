@@ -130,6 +130,8 @@ Available Commands for Kotlin Development:
 `:KotlinFormat`                Format current buffer using IntelliJ IDEA formatting
 `:KotlinSymbols`               Show document symbols/outline for current buffer
 `:KotlinWorkspaceSymbols`      Search for symbols across the entire workspace
+`:KotlinTypeDefinition`        Go to type definition of symbol under cursor (v262+)
+`:KotlinImplementation`        Go to implementation of symbol under cursor (v262+)
 `:KotlinReferences`            Find all references to symbol under cursor
 `:KotlinRename`                Rename symbol under cursor across the project
 `:KotlinCodeActions`           Show all available code actions from kotlin-lsp
@@ -144,6 +146,11 @@ Code Actions and Quick Fixes: ~
 `:KotlinCodeActions` shows all available code actions from kotlin-lsp. These
 include refactorings, quick fixes, and intentions that use the new "mod
 command" system in kotlin-lsp v0.261+.
+
+As of kotlin-lsp v262+, the following additional code actions are available:
+- "Add names to call arguments"
+- "Specify type explicitly"
+- "Add import" quick fixes for unresolved references
 
 `:KotlinQuickFix` filters to show only quickfix actions for diagnostics on
 the current line, making it easier to fix errors and warnings.
@@ -164,6 +171,12 @@ Key Mapping Example: ~
         { desc = 'Kotlin code actions' })
     vim.keymap.set('n', '<leader>kq', ':KotlinQuickFix<CR>',
         { desc = 'Kotlin quick fix' })
+    
+    -- Go to type definition
+    vim.keymap.set('n', '<leader>kt', ':KotlinTypeDefinition<CR>',
+        { desc = 'Go to type definition' })
+    vim.keymap.set('n', '<leader>ki', ':KotlinImplementation<CR>',
+        { desc = 'Go to implementation' })
     
     -- Organize imports
     vim.keymap.set('n', '<leader>ko', ':KotlinOrganizeImports<CR>', 

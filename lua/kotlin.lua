@@ -364,6 +364,7 @@ function M.setup_kotlin_lsp(opts)
     "build.gradle",
     "build.gradle.kts",
     "pom.xml",
+    "mvnw",
   }
 
   local root_markers = opts.root_markers or default_root_markers
