@@ -31,6 +31,8 @@ setup({opts})                                                          *kotlin.s
     Parameters: ~
         {opts}  (table) Configuration options:
             • root_markers: List of files to identify project root
+                Default: {"build.gradle", "build.gradle.kts", "pom.xml", "mvnw"}
+                Overrides the defaults entirely when specified
             • jre_path: Path to JRE for running the language server
             • jvm_args: Additional JVM arguments for the language server
             • jdk_for_symbol_resolution: Path to JDK for symbol resolution

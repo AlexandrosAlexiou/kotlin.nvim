@@ -82,6 +82,7 @@ Install the plugin with your package manager:
     config = function()
         require("kotlin").setup {
             -- Optional: Specify root markers for multi-module projects
+            -- Default: { "build.gradle", "build.gradle.kts", "pom.xml", "mvnw" }
             root_markers = {
                 "gradlew",
                 ".git",
