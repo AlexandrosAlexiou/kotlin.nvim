@@ -48,9 +48,11 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
 - [x] Per-project LSP configuration via `.kotlin-lsp.lua` file
 - [x] Per-project LSP disabling via marker file
   - Create a `.disable-kotlin-lsp` file in the project root to prevent the Kotlin LSP from being registered
+- [x] DAP debugging support via nvim-dap (uses kotlin-lsp's built-in debug adapter)
 
 > [!note]
 > **Version Requirements:**
+> - The plugin uses the bundled launcher script (`kotlin-lsp.sh` / `kotlin-lsp.cmd`) from the kotlin-lsp distribution to handle JVM configuration automatically.
 > - Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
 > - Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
 > - Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
@@ -68,6 +70,9 @@ Install the plugin with your package manager:
 - [oil.nvim](https://github.com/stevearc/oil.nvim) - File explorer for package navigation (used by "Go to Definition" on package declarations)
 - [trouble.nvim](https://github.com/folke/trouble.nvim) - Enhanced quickfix/location list UI (required for `:KotlinSymbols` and `:KotlinWorkspaceSymbols` commands to display document outline and workspace symbols)
 
+**Optional:**
+- [nvim-dap](https://github.com/mfussenegger/nvim-dap) - Debug Adapter Protocol client (required for `:KotlinDebug` command)
+
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 ```lua
 {
@@ -78,6 +83,8 @@ Install the plugin with your package manager:
         "mason-lspconfig.nvim",
         "oil.nvim",
         "trouble.nvim",
+        -- Uncomment to enable :KotlinDebug command
+        -- "mfussenegger/nvim-dap",
     },
     config = function()
         require("kotlin").setup {
@@ -91,10 +98,10 @@ Install the plugin with your package manager:
             },
 
             -- Optional: Java Runtime to run the kotlin-lsp server itself
-            -- NOT REQUIRED when using Mason (kotlin-lsp v261+ includes bundled JRE)
-            -- Priority: 1. jre_path, 2. Bundled JRE (Mason), 3. System java
+            -- NOT REQUIRED when using Mason (the bundled launcher handles JRE automatically)
             --
-            -- Use this if you want to run kotlin-lsp with a specific Java version
+            -- When set, the plugin parses JVM args from the bundled launcher script
+            -- and invokes your custom JRE with the correct flags
             -- Must point to JAVA_HOME (directory containing bin/java)
             -- Examples:
             --   macOS:   "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home"
@@ -211,15 +218,13 @@ kotlin.nvim provides two separate Java-related configuration options that serve 
 
 **Purpose:** Specifies which Java runtime should be used to **run the kotlin-lsp server process itself**.
 
-**Priority:**
-1. `jre_path` in your config (if specified)
-2. Bundled JRE in Mason installation (kotlin-lsp v261+)
-3. System `java` from PATH
-
 **When to use:**
 - You want to run kotlin-lsp with a specific Java version
-- You're not using Mason, or using an older kotlin-lsp version without bundled JRE
 - You have specific JVM compatibility requirements for the server
+
+When `jre_path` is set, the plugin parses JVM arguments from the bundled launcher
+script and invokes your custom JRE with the correct flags. When not set, the
+bundled launcher script handles everything automatically.
 
 **Examples:**
 ```lua
@@ -239,7 +244,7 @@ jre_path = os.getenv("JAVA_HOME")
 jre_path = os.getenv("HOME") .. "/.sdkman/candidates/java/21.0.1-tem"
 ```
 
-**Recommendation:** Leave as `nil` to use Mason's bundled JRE (simplest setup).
+**Recommendation:** Leave as `nil` to use the bundled launcher and JRE (simplest setup).
 
 #### 2. `jdk_for_symbol_resolution` - JDK for Code Analysis
 
@@ -385,6 +390,7 @@ kotlin.nvim provides several commands for working with Kotlin code:
 | `:KotlinHintsToggle` | Toggle HINT severity diagnostics (if sent by the server) |
 | `:KotlinExportWorkspaceToJson` | Export workspace structure to `workspace.json` |
 | `:KotlinCleanWorkspace` | Clear cached indices for the current project |
+| `:KotlinDebug [port]` | Attach debugger to a Kotlin/JVM process (JDWP port, default 5005; requires nvim-dap) |
 
 > [!note]
 > `:KotlinSymbols` and `:KotlinWorkspaceSymbols` require [trouble.nvim](https://github.com/folke/trouble.nvim) to display results in a clean, interactive window. These commands provide a better alternative to traditional location lists for browsing code structure.
@@ -418,7 +424,40 @@ vim.keymap.set('n', '<leader>kn', ':KotlinRename<CR>', { desc = 'Rename symbol' 
 
 -- Toggle inlay hints
 vim.keymap.set('n', '<leader>kh', ':KotlinInlayHintsToggle<CR>', { desc = 'Toggle inlay hints' })
+
+-- Debug
+vim.keymap.set('n', '<leader>kd', ':KotlinDebug<CR>', { desc = 'Debug Kotlin program' })
 ```
+
+### Debugging Support
+
+kotlin.nvim integrates with [nvim-dap](https://github.com/mfussenegger/nvim-dap) to provide debugging support through kotlin-lsp's built-in debug adapter. When you start a debug session, the plugin sends a `start_debug_server` command to kotlin-lsp, which spins up a DAP server, then attaches to your running JVM process via JDWP.
+
+**Usage:**
+
+1. Start your Kotlin application with JDWP debugging enabled:
+```sh
+# Gradle
+./gradlew run --debug-jvm
+
+# Maven (tests)
+mvn test -Dmaven.surefire.debug
+```
+Both default to JDWP port **5005**.
+
+2. Open a Kotlin file to activate kotlin-lsp
+
+3. Set breakpoints and attach the debugger:
+```vim
+:KotlinDebug          " prompts for port (default 5005)
+:KotlinDebug 5005     " attach to port 5005 directly
+:KotlinDebug 8000     " attach to a custom port
+```
+
+The plugin registers a `kotlin` DAP adapter automatically. It is only set if not already configured by the user, so you can fully customize it in your nvim-dap setup.
+
+> [!note]
+> nvim-dap is an optional dependency. If it is not installed, DAP features are silently skipped and the rest of the plugin works normally.
 
 ### Shared Indices
 
@@ -438,7 +477,7 @@ You can easily install kotlin-lsp using [Mason][6] with the following command:
 
 This is the recommended approach as Mason handles the installation automatically and includes platform-specific builds with a bundled JRE (zero-dependency installation). **No separate JDK installation is required** when using the Mason-installed kotlin-lsp.
 
-The plugin will automatically detect and use the bundled JRE from the Mason installation, providing a seamless zero-configuration experience.
+The plugin uses the bundled launcher script (`kotlin-lsp.sh` / `kotlin-lsp.cmd`) from the Mason installation, which handles JRE detection, JVM arguments, and classpath internally.
 
 ### Option 2: Manual Installation
 
@@ -448,25 +487,28 @@ If you prefer not to use Mason or need to use a specific version of kotlin-lsp, 
 export KOTLIN_LSP_DIR=/path/to/your/kotlin-lsp
 ```
 
-The plugin will automatically detect and use your manual installation when the environment variable is set. Ensure your installation has the following structure:
+The plugin will automatically detect and use your manual installation when the environment variable is set. The installation must include the bundled launcher script and lib directory:
 
 ```
 $KOTLIN_LSP_DIR/
+├── kotlin-lsp.sh       (Unix/macOS launcher)
+├── kotlin-lsp.cmd      (Windows launcher)
 └── lib/
     └── ... (jar files)
 ```
 
-For manual installations, you'll need to provide a JRE either through:
-- The `jre_path` configuration option
-- The `JAVA_HOME` environment variable
-- A system-wide `java` installation
+> [!important]
+> The plugin relies on the bundled launcher script (`kotlin-lsp.sh` / `kotlin-lsp.cmd`) to configure JVM arguments and classpath. Download the official kotlin-lsp distribution from [GitHub releases](https://github.com/Kotlin/kotlin-lsp/releases) to ensure the launcher script is included.
 
-> [!tip]
-> The plugin automatically prioritizes JRE selection in this order:
-> 1. User-specified `jre_path` in configuration
-> 2. Bundled JRE from Mason kotlin-lsp installation (zero-dependency)
-> 3. `JAVA_HOME` environment variable
-> 4. System-wide `java` installation
+### Custom JRE
+
+If you need to run kotlin-lsp with a specific Java runtime (e.g., for compatibility or performance), use the `jre_path` configuration option. The plugin will parse JVM arguments from the bundled launcher script and invoke your custom JRE with the correct flags.
+
+```lua
+jre_path = "/path/to/jdk-21"  -- Must point to JAVA_HOME (directory containing bin/java)
+```
+
+Additional JVM arguments (e.g., `-Xmx4g`) are passed via the `IJ_JAVA_OPTIONS` environment variable, which is read by the kotlin-lsp server at startup.
 
 > [!caution]
 > If you use other tools like [nvim-lspconfig][8] or [mason-lspconfig][7], make sure to explicitly exclude the `kotlin_lsp` configuration there to avoid conflicts.
@@ -477,6 +519,7 @@ For manual installations, you'll need to provide a JRE either through:
 - [rustaceanvim][10]
 - [oil.nvim][11]
 - [trouble.nvim][12]
+- [nvim-dap][13]
 
 [1]: https://microsoft.github.io/language-server-protocol/
 [2]: https://neovim.io/
@@ -490,6 +533,7 @@ For manual installations, you'll need to provide a JRE either through:
 [10]: https://github.com/mrcjkb/rustaceanvim
 [11]: https://github.com/stevearc/oil.nvim
 [12]: https://github.com/folke/trouble.nvim
+[13]: https://github.com/mfussenegger/nvim-dap
 
 <!-- MARKDOWN LINKS & IMAGES -->
 [neovim-shield]: https://img.shields.io/badge/NeoVim-%2357A143.svg?&style=for-the-badge&logo=neovim&logoColor=white

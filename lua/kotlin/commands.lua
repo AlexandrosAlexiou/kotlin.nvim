@@ -73,7 +73,7 @@ end
 function M.code_actions()
   local bufnr = vim.api.nvim_get_current_buf()
   local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
-  
+
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
     return
@@ -82,7 +82,7 @@ function M.code_actions()
   -- Use the standard code action but it will only show kotlin-lsp actions
   -- since we filtered to kotlin_ls client
   vim.lsp.buf.code_action({
-    filter = function(action)
+    filter = function(_)
       -- Only show actions from kotlin_ls
       return true
     end,
@@ -93,7 +93,7 @@ end
 function M.quick_fix()
   local bufnr = vim.api.nvim_get_current_buf()
   local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
-  
+
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
     return
@@ -101,10 +101,10 @@ function M.quick_fix()
 
   local cursor = vim.api.nvim_win_get_cursor(0)
   local line = cursor[1] - 1
-  
+
   -- Get diagnostics for current line
   local diagnostics = vim.diagnostic.get(bufnr, { lnum = line })
-  
+
   if #diagnostics == 0 then
     vim.notify("No diagnostics on current line", vim.log.levels.INFO)
     return
@@ -149,29 +149,29 @@ function M.document_symbols()
 
   -- Request symbols and show in trouble
   local params = { textDocument = vim.lsp.util.make_text_document_params(bufnr) }
-  
-  clients[1].request('textDocument/documentSymbol', params, function(err, result)
+
+  clients[1].request("textDocument/documentSymbol", params, function(err, result)
     if err then
       vim.notify("Failed to get symbols: " .. vim.inspect(err), vim.log.levels.ERROR)
       return
     end
-    
+
     if not result or vim.tbl_isempty(result) then
       vim.notify("No symbols found", vim.log.levels.INFO)
       return
     end
-    
+
     -- Convert symbols to quickfix/location list format
     local function flatten_symbols(symbols, items, parent_name)
       items = items or {}
       parent_name = parent_name or ""
-      
+
       for _, symbol in ipairs(symbols) do
         local name = symbol.name
         if parent_name ~= "" then
           name = parent_name .. "." .. name
         end
-        
+
         -- Add the symbol
         local range = symbol.selectionRange or symbol.range or symbol.location.range
         table.insert(items, {
@@ -180,21 +180,21 @@ function M.document_symbols()
           col = range.start.character + 1,
           text = name .. " [" .. (symbol.kind or "") .. "]",
         })
-        
+
         -- Recursively add children
         if symbol.children then
           flatten_symbols(symbol.children, items, name)
         end
       end
-      
+
       return items
     end
-    
+
     local items = flatten_symbols(result)
-    
+
     -- Set location list and open with trouble
-    vim.fn.setloclist(0, items, 'r')
-    vim.fn.setloclist(0, {}, 'a', { title = 'Document Symbols' })
+    vim.fn.setloclist(0, items, "r")
+    vim.fn.setloclist(0, {}, "a", { title = "Document Symbols" })
     require("trouble").open("loclist")
   end, bufnr)
 end

@@ -9,6 +9,7 @@ Inlay Hints ··································
 Toggle Hints ··························································· |kotlin.nvim.hints|
 Workspace Management ··············································· |kotlin.nvim.workspace|
 Disabling LSP ·························································· |kotlin.nvim.disable|
+Debugging ···························································· |kotlin.nvim.debugging|
 
 ==========================================================================================
 
@@ -142,6 +143,7 @@ Available Commands for Kotlin Development:
 `:KotlinHintsToggle`           Toggle HINT severity diagnostics
 `:KotlinExportWorkspaceToJson` Export workspace structure to workspace.json
 `:KotlinCleanWorkspace`        Clear cached indices for current project
+`:KotlinDebug [port]`          Attach debugger to JVM (see |kotlin.nvim.debugging|)
 
 Code Actions and Quick Fixes: ~
 
@@ -391,6 +393,85 @@ Note: ~
 
 The check is performed based on the current working directory (`getcwd()`), so
 ensure you're in the correct project directory when opening Kotlin files.
+
+==========================================================================================
+
+Debugging                                                        *kotlin.nvim.debugging*
+
+kotlin.nvim integrates with nvim-dap to provide debugging support through
+kotlin-lsp's built-in debug adapter. When you start a debug session, the
+plugin sends a `start_debug_server` command to kotlin-lsp, which spins up
+a DAP server and returns the port to connect to.
+
+Requirements: ~
+- nvim-dap (https://github.com/mfussenegger/nvim-dap) must be installed
+- kotlin-lsp must be running (open a Kotlin file first)
+
+Commands: ~
+
+`:KotlinDebug [port]`  Attach the debugger to a running Kotlin/JVM process.
+                      Optionally specify the JDWP port (default: 5005).
+                      If no port is given, you will be prompted.
+
+Usage: ~
+
+1. Start your Kotlin application with JDWP debugging enabled:
+
+   Gradle:
+>sh
+    ./gradlew run --debug-jvm
+<
+   Maven (tests):
+>sh
+    mvn test -Dmaven.surefire.debug
+<
+   Both default to port 5005.
+
+2. Open a Kotlin file to activate kotlin-lsp
+
+3. Set breakpoints with nvim-dap:
+>lua
+    require("dap").toggle_breakpoint()
+<
+
+4. Attach the debugger:
+>vim
+    :KotlinDebug          " prompts for port (default 5005)
+    :KotlinDebug 5005     " attach to port 5005 directly
+    :KotlinDebug 8000     " attach to a custom port
+<
+
+Configuration: ~
+
+The plugin registers a `kotlin` DAP adapter automatically. It is only set
+if not already configured by the user, so you can override it:
+>lua
+    local dap = require("dap")
+
+    -- Custom adapter (optional, plugin registers one automatically)
+    dap.adapters.kotlin = function(cb)
+        -- your custom adapter logic
+    end
+<
+
+You can also call the start function programmatically:
+>lua
+    require("kotlin.dap").start({ port = 5005 })
+<
+
+Key Mapping Example: ~
+>lua
+    vim.keymap.set('n', '<leader>kd', ':KotlinDebug<CR>',
+        { desc = 'Debug Kotlin program' })
+    vim.keymap.set('n', '<leader>db', function()
+        require("dap").toggle_breakpoint()
+    end, { desc = 'Toggle breakpoint' })
+<
+
+Note: ~
+
+nvim-dap is an optional dependency. If it is not installed, DAP features
+are silently skipped and the rest of the plugin works normally.
 
 ==========================================================================================
 
