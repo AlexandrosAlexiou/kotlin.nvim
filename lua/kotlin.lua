@@ -75,17 +75,38 @@ function M.setup_kotlin_lsp(opts)
   opts = opts or {}
   local is_windows = vim.fn.has("win32") == 1
 
-  -- Get current project info
-  local current_dir = vim.fn.getcwd()
+  -- Get current buffer's directory as starting point for root detection
+  local buf_dir = vim.fn.expand("%:p:h")
+  if buf_dir == "" or buf_dir == "." then
+    buf_dir = vim.fn.getcwd()
+  end
+
+  -- Search upward from the buffer directory for marker/config files
+  local function find_file_upward(filename, start_dir)
+    local dir = start_dir
+    while dir and dir ~= "" do
+      local filepath = dir .. "/" .. filename
+      if vim.fn.filereadable(filepath) == 1 then
+        return filepath
+      end
+      local parent = vim.fn.fnamemodify(dir, ":h")
+      if parent == dir then
+        break
+      end
+      dir = parent
+    end
+    return nil
+  end
 
   -- Check for marker file that disables Kotlin LSP
-  local marker_file = current_dir .. "/.disable-kotlin-lsp"
-  if vim.fn.filereadable(marker_file) == 1 then
+  if find_file_upward(".disable-kotlin-lsp", buf_dir) then
     return
   end
 
+  local current_dir = vim.fn.getcwd()
+
   -- Check for project-specific configuration file
-  local project_config_file = current_dir .. "/.kotlin-lsp.lua"
+  local project_config_file = find_file_upward(".kotlin-lsp.lua", buf_dir) or (current_dir .. "/.kotlin-lsp.lua")
   if vim.fn.filereadable(project_config_file) == 1 then
     local ok, project_config = pcall(dofile, project_config_file)
     if ok and type(project_config) == "table" then

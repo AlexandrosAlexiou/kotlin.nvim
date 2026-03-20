@@ -374,8 +374,7 @@ server to run, since it does not support all kinds of projects yet.
 Usage: ~
 
 To disable the Kotlin LSP for a specific project, create a `.disable-kotlin-lsp`
-file in the project root directory (the current working directory when opening
-Kotlin files).
+file in the project root directory.
 
 Example:
 ```
@@ -383,14 +382,13 @@ cd /path/to/your/kotlin/project
 touch .disable-kotlin-lsp
 ```
 
-When the plugin detects this marker file, it will skip LSP initialization and
-display an informational message. The marker file can be an empty file—only
-its presence is checked.
+When the plugin detects this marker file, it will skip LSP initialization.
+The marker file can be an empty file—only its presence is checked.
 
 Note: ~
 
-The check is performed based on the current working directory (`getcwd()`), so
-ensure you're in the correct project directory when opening Kotlin files.
+The plugin searches upward from the opened file's directory to find the marker
+file, so it works regardless of your current working directory.
 
 ==========================================================================================
 

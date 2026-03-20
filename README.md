@@ -47,7 +47,7 @@ Extensions for JetBrains' <a href="https://github.com/Kotlin/kotlin-lsp/">Kotlin
   - Use `KotlinCleanWorkspace` command to clear cached indices for the current project
 - [x] Per-project LSP configuration via `.kotlin-lsp.lua` file
 - [x] Per-project LSP disabling via marker file
-  - Create a `.disable-kotlin-lsp` file in the project root to prevent the Kotlin LSP from being registered
+  - Create a `.disable-kotlin-lsp` file in the project root to prevent the Kotlin LSP from starting (detected automatically by searching upward from the opened file)
 
 > [!note]
 > **Version Requirements:**
@@ -196,6 +196,20 @@ return {
 
 > [!tip]
 > Add `.kotlin-lsp.lua` to your `.gitignore` if settings are developer-specific, or commit it if the entire team should use the same configuration.
+
+### Disabling the LSP for a Project
+
+Since the Kotlin language server is under heavy development, it may not fully support all project types or setups yet. If you run into issues with a specific project, you can disable the LSP for that project by creating a `.disable-kotlin-lsp` marker file in the project root:
+
+```sh
+cd /path/to/your/kotlin/project
+touch .disable-kotlin-lsp
+```
+
+The plugin searches upward from the opened file's directory, so it will find the marker regardless of your current working directory. The file can be empty — only its presence is checked.
+
+> [!tip]
+> You can also disable the LSP for a single buffer by setting the buffer-local variable `vim.b.disable_kotlin_lsp = true` before the LSP attaches.
 
 ## ✨ Features
 
