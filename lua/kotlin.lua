@@ -16,6 +16,9 @@ function M.setup(opts)
   vim.api.nvim_create_user_command("KotlinCleanWorkspace", function()
     M.clean_workspace()
   end, { desc = "Clean Kotlin LSP workspace for current project" })
+
+  -- Set up DAP integration (optional, requires nvim-dap)
+  require("kotlin.dap").setup()
 end
 
 function M.get_workspace_base_dir()
@@ -127,45 +130,17 @@ function M.setup_kotlin_lsp(opts)
   -- Create workspace directory
   vim.fn.mkdir(workspace_dir, "p")
 
-  -- Find Kotlin LSP lib directory and bundled JRE first
+  -- Find Kotlin LSP installation directory
   local kotlin_lsp_dir = nil
-  local lib_dir = nil
-  local bundled_jre_path = nil
 
   local mason_package_dir = vim.fn.expand("$MASON/packages/kotlin-lsp")
 
   if vim.fn.isdirectory(mason_package_dir) == 1 then
-    if vim.fn.isdirectory(mason_package_dir .. "/lib") == 1 then
-      lib_dir = mason_package_dir .. "/lib"
-      kotlin_lsp_dir = mason_package_dir
-
-      -- Check for bundled JRE in Mason installation
-      -- Platform-specific JRE path (macOS uses jre/Contents/Home, others use jre)
-      local jre_base = kotlin_lsp_dir .. "/jre"
-      if vim.fn.isdirectory(jre_base) == 1 then
-        if vim.fn.has("mac") == 1 or vim.fn.has("macunix") == 1 then
-          bundled_jre_path = jre_base .. "/Contents/Home"
-        else
-          bundled_jre_path = jre_base
-        end
-
-        -- Verify the bundled JRE has a java binary
-        local bundled_java_bin = bundled_jre_path .. (is_windows and "\\bin\\java.exe" or "/bin/java")
-        if vim.fn.executable(bundled_java_bin) ~= 1 then
-          -- JRE directory exists but java is not executable, try to make it executable
-          if not is_windows then
-            vim.fn.system("chmod +x " .. bundled_java_bin)
-          end
-          if vim.fn.executable(bundled_java_bin) ~= 1 then
-            bundled_jre_path = nil
-          end
-        end
-      end
-    end
+    kotlin_lsp_dir = mason_package_dir
   end
 
   -- Fallback to environment variable if not found in Mason
-  if not lib_dir then
+  if not kotlin_lsp_dir then
     kotlin_lsp_dir = os.getenv("KOTLIN_LSP_DIR")
     if not kotlin_lsp_dir then
       vim.notify(
@@ -174,206 +149,68 @@ function M.setup_kotlin_lsp(opts)
       )
       return
     end
-
-    lib_dir = kotlin_lsp_dir .. "/lib"
-    if vim.fn.isdirectory(lib_dir) == 0 then
-      vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
-      return
-    end
   end
 
-  local jre_path = opts.jre_path
-  local java_bin = "java"
-  local skip_jre_check = false
+  -- Check that the lib directory exists
+  local lib_dir = kotlin_lsp_dir .. (is_windows and "\\lib" or "/lib")
+  if vim.fn.isdirectory(lib_dir) == 0 then
+    vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
+    return
+  end
 
-  -- Priority order for JRE selection:
-  -- 1. User-specified jre_path in config
-  -- 2. Bundled JRE from Mason kotlin-lsp (zero-dependency)
-  -- 3. JAVA_HOME environment variable
-  -- 4. System java (if available)
+  -- Build command: prefer the bundled launcher script, fall back to manual java invocation
+  local cmd = nil
+  local cmd_env = nil
 
-  if jre_path then
-    -- User explicitly specified a JRE path
-    local java_executable = is_windows and "java.exe" or "java"
-    java_bin = jre_path .. "/bin/" .. java_executable
+  local launcher_name = is_windows and "kotlin-lsp.cmd" or "kotlin-lsp.sh"
+  local launcher_path = kotlin_lsp_dir .. (is_windows and "\\" or "/") .. launcher_name
 
-    if vim.fn.executable(java_bin) ~= 1 then
-      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
-      return
-    end
-  elseif bundled_jre_path then
-    -- Use bundled JRE from Mason kotlin-lsp installation (zero-dependency)
-    local java_executable = is_windows and "java.exe" or "java"
-    java_bin = bundled_jre_path .. "/bin/" .. java_executable
-    skip_jre_check = true -- Skip version check since bundled JRE is known to be compatible
-  elseif vim.env.JAVA_HOME then
-    -- Use JAVA_HOME
-    local java_executable = is_windows and "java.exe" or "java"
-    java_bin = vim.env.JAVA_HOME .. "/bin/" .. java_executable
+  if vim.fn.executable(launcher_path) == 1 then
+    if opts.jre_path then
+      -- Custom JRE requested: parse JVM args from the launcher script and invoke java directly
+      local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
+      if not java_bin then
+        return
+      end
 
-    if vim.fn.executable(java_bin) ~= 1 then
-      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
-      return
-    end
-  else
-    -- Fall back to system java
-    if vim.fn.executable("java") == 1 then
-      java_bin = "java"
+      local jvm_args = M.parse_launcher_jvm_args(launcher_path, is_windows)
+      cmd = { java_bin }
+      vim.list_extend(cmd, jvm_args)
+
+      local cp_separator = is_windows and "\\" or "/"
+      vim.list_extend(cmd, {
+        "-cp",
+        lib_dir .. cp_separator .. "*",
+        "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
+        "--stdio",
+        "--system-path=" .. workspace_dir,
+      })
     else
-      vim.notify(
-        "No Java runtime found. Please install Java or configure jre_path in your setup.",
-        vim.log.levels.ERROR
-      )
-      return
+      -- Use the bundled launcher script (handles JRE, JVM args, classpath internally)
+      cmd = { launcher_path, "--stdio", "--system-path=" .. workspace_dir }
     end
-  end
-
-  -- Check JRE version (skip for bundled JRE)
-  if not skip_jre_check then
-    local jre = require("kotlin.jre")
-    if not jre.is_supported_version(java_bin) then
-      vim.notify(
-        string.format(
-          "Java version %d or higher is required to run Kotlin LSP.\n"
-            .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
-          jre.minimum_supported_jre_version,
-          jre.minimum_supported_jre_version
-        ),
-        vim.log.levels.ERROR
-      )
-      return
-    end
-  end
-
-  local default_jvm_args = {
-    "--add-opens",
-    "java.base/java.io=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.lang=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.lang.ref=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.lang.reflect=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.net=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.nio=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.nio.charset=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.text=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.time=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.util=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.util.concurrent=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.util.concurrent.atomic=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/java.util.concurrent.locks=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/jdk.internal.vm=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/sun.net.dns=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/sun.nio.ch=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/sun.nio.fs=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/sun.security.ssl=ALL-UNNAMED",
-    "--add-opens",
-    "java.base/sun.security.util=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/com.apple.eawt=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/com.apple.eawt.event=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/com.apple.laf=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/com.sun.java.swing=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/com.sun.java.swing.plaf.gtk=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/java.awt=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/java.awt.dnd.peer=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/java.awt.event=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/java.awt.font=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/java.awt.image=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/java.awt.peer=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/javax.swing=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/javax.swing.plaf.basic=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/javax.swing.text=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/javax.swing.text.html=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.awt=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.awt.X11=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.awt.datatransfer=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.awt.image=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.awt.windows=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.font=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.java2d=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.lwawt=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.lwawt.macosx=ALL-UNNAMED",
-    "--add-opens",
-    "java.desktop/sun.swing=ALL-UNNAMED",
-    "--add-opens",
-    "java.management/sun.management=ALL-UNNAMED",
-    "--add-opens",
-    "jdk.attach/sun.tools.attach=ALL-UNNAMED",
-    "--add-opens",
-    "jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED",
-    "--add-opens",
-    "jdk.internal.jvmstat/sun.jvmstat.monitor=ALL-UNNAMED",
-    "--add-opens",
-    "jdk.jdi/com.sun.tools.jdi=ALL-UNNAMED",
-    "--enable-native-access=ALL-UNNAMED",
-    "-Djdk.lang.Process.launchMechanism=FORK",
-  }
-
-  local jvm_args = default_jvm_args
-  if opts.jvm_args and type(opts.jvm_args) == "table" then
-    for _, arg in ipairs(opts.jvm_args) do
-      table.insert(jvm_args, arg)
-    end
-  end
-
-  local cmd = { java_bin }
-
-  for _, arg in ipairs(jvm_args) do
-    table.insert(cmd, arg)
-  end
-
-  if is_windows then
-    table.insert(cmd, "-cp")
-    table.insert(cmd, lib_dir .. "\\*")
   else
-    table.insert(cmd, "-cp")
-    table.insert(cmd, lib_dir .. "/*")
+    -- No launcher script: construct java command manually (KOTLIN_LSP_DIR installs)
+    local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
+    if not java_bin then
+      return
+    end
+
+    local cp_separator = is_windows and "\\" or "/"
+    cmd = {
+      java_bin,
+      "-cp",
+      lib_dir .. cp_separator .. "*",
+      "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
+      "--stdio",
+      "--system-path=" .. workspace_dir,
+    }
   end
 
-  table.insert(cmd, "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt")
-  table.insert(cmd, "--stdio")
-
-  -- Use project-specific workspace directory for indexes
-  table.insert(cmd, "--system-path=" .. workspace_dir)
+  -- Pass additional JVM args via IJ_JAVA_OPTIONS environment variable
+  if opts.jvm_args and type(opts.jvm_args) == "table" and #opts.jvm_args > 0 then
+    cmd_env = { IJ_JAVA_OPTIONS = table.concat(opts.jvm_args, " ") }
+  end
 
   require("kotlin.autocommands").setup()
   require("kotlin.autocommands").setup_inlay_hints(opts)
@@ -422,6 +259,7 @@ function M.setup_kotlin_lsp(opts)
 
   vim.lsp.config.kotlin_ls = {
     cmd = cmd,
+    cmd_env = cmd_env,
     filetypes = { "kotlin" },
     root_markers = root_markers,
     settings = settings,
@@ -436,16 +274,16 @@ function M.setup_kotlin_lsp(opts)
     -- Handle workspace/configuration requests from the server
     -- This is crucial for inlay hints - the server requests configuration dynamically
     handlers = {
-      ["workspace/configuration"] = function(err, params, ctx)
+      ["workspace/configuration"] = function(_, params, _)
         local result = {}
         for _, item in ipairs(params.items or {}) do
           local section = item.section
-          
+
           if section == "jetbrains.kotlin" then
             -- Server requested the jetbrains.kotlin section
             -- Build a nested object from our flat settings
             local kotlin_config = { hints = {} }
-            
+
             if opts.inlay_hints then
               kotlin_config.hints = {
                 parameters = opts.inlay_hints.parameters ~= false,
@@ -481,7 +319,7 @@ function M.setup_kotlin_lsp(opts)
                 },
               }
             end
-            
+
             table.insert(result, kotlin_config)
           elseif section and settings[section] ~= nil then
             -- Return the setting value for other requested sections
@@ -500,5 +338,77 @@ function M.setup_kotlin_lsp(opts)
 end
 
 M.settings = { uri_timeout_ms = 5000 }
+
+-- Parse JVM arguments from the bundled launcher script.
+-- Extracts --add-opens, --enable-native-access, -D, and -X flags.
+function M.parse_launcher_jvm_args(launcher_path, is_windows)
+  local args = {}
+  local content = vim.fn.readfile(launcher_path)
+
+  for _, line in ipairs(content) do
+    -- Strip trailing backslash (sh) or caret (cmd) continuation characters and whitespace
+    local trimmed = line:gsub("[\\^]%s*$", ""):match("^%s*(.-)%s*$")
+
+    if
+      trimmed:match("^%-%-add%-opens%s")
+      or trimmed:match("^%-%-enable%-native%-access")
+      or trimmed:match("^%-D")
+      or trimmed:match("^%-X")
+    then
+      -- Split on whitespace in case --add-opens and its value are on the same token
+      for token in trimmed:gmatch("%S+") do
+        table.insert(args, token)
+      end
+    end
+  end
+
+  return args
+end
+
+-- Resolve a java binary for the fallback path (when no launcher script is available).
+-- Priority: 1. User-specified jre_path, 2. JAVA_HOME, 3. System java
+function M.resolve_java_bin(jre_path, is_windows)
+  local java_bin = "java"
+  local java_executable = is_windows and "java.exe" or "java"
+
+  if jre_path then
+    java_bin = jre_path .. "/bin/" .. java_executable
+    if vim.fn.executable(java_bin) ~= 1 then
+      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
+      return nil
+    end
+  elseif vim.env.JAVA_HOME then
+    java_bin = vim.env.JAVA_HOME .. "/bin/" .. java_executable
+    if vim.fn.executable(java_bin) ~= 1 then
+      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
+      return nil
+    end
+  else
+    if vim.fn.executable("java") ~= 1 then
+      vim.notify(
+        "No Java runtime found. Please install Java or configure jre_path in your setup.",
+        vim.log.levels.ERROR
+      )
+      return nil
+    end
+  end
+
+  -- Verify JRE version
+  local jre = require("kotlin.jre")
+  if not jre.is_supported_version(java_bin) then
+    vim.notify(
+      string.format(
+        "Java version %d or higher is required to run Kotlin LSP.\n"
+          .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
+        jre.minimum_supported_jre_version,
+        jre.minimum_supported_jre_version
+      ),
+      vim.log.levels.ERROR
+    )
+    return nil
+  end
+
+  return java_bin
+end
 
 return M
