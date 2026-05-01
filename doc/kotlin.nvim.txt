@@ -7,6 +7,9 @@ Per-Project Configuration ···························
 LSP Extensions ···················································· |kotlin.nvim.extensions|
 Inlay Hints ························································ |kotlin.nvim.inlayhints|
 Toggle Hints ··························································· |kotlin.nvim.hints|
+Call Hierarchy ···················································· |kotlin.nvim.callhierarchy|
+Folding ······························································ |kotlin.nvim.folding|
+File Templates ···················································· |kotlin.nvim.filetemplates|
 Workspace Management ··············································· |kotlin.nvim.workspace|
 Disabling LSP ·························································· |kotlin.nvim.disable|
 Debugging ···························································· |kotlin.nvim.debugging|
@@ -35,26 +38,44 @@ setup({opts})                                                          *kotlin.s
                 Default: {"build.gradle", "build.gradle.kts", "pom.xml", "mvnw"}
                 Overrides the defaults entirely when specified
             • jre_path: Path to JRE for running the language server
+                Note: only honoured when a legacy kotlin-lsp.sh launcher is
+                present; the new bin/intellij-server native launcher manages
+                its own JVM. v262.4739.0+ requires JDK 25.
             • jvm_args: Additional JVM arguments for the language server
+                (passed via the IJ_JAVA_OPTIONS environment variable)
             • jdk_for_symbol_resolution: Path to JDK for symbol resolution
                 (typically the JDK installation path, e.g., "/path/to/jdk-21")
-                This determines which JDK APIs and libraries are used for
-                code completion and symbol resolution
+                Forwarded to the server as `defaultSdk` (and `defaultJdk` for
+                backwards compat with builds before v262.4739.0).
+            • build_tool: Preferred build importer for the workspace.
+                One of: "gradle", "maven", "" (none), or nil (server picks).
+                Requires kotlin-lsp v262.4739.0+. Mirrors VSCode's
+                `intellij.buildTool` setting (LSP-807).
             • inlay_hints: Configuration for inlay hints (see |kotlin.nvim.inlayhints|)
                 All settings default to true (except parameters_excluded)
+            • folding: { enabled = boolean } — enable LSP-driven folding
+                for Kotlin buffers. Default true. Requires kotlin-lsp
+                v262.4739.0+ and Neovim 0.11+.
+            • file_templates: IntelliJ-style file templates for new Kotlin
+                files. Pass { enabled = false } to disable, or a table of
+                name → Velocity template to override the defaults (Class,
+                File, Interface, Data Class, Enum, Annotation, Object).
+                Requires kotlin-lsp v262.4739.0+.
 
     Example: ~
 >lua
         require("kotlin").setup {
             root_markers = { "gradlew", ".git", "settings.gradle" },
-            jre_path = "/path/to/jre",
+            jre_path = "/path/to/jdk-25",
             jvm_args = { "-Xmx4g" },
             jdk_for_symbol_resolution = "/path/to/jdk-21",
+            build_tool = "gradle",
             inlay_hints = {
                 enabled = true,
                 parameters = true,
                 types_property = true,
             },
+            folding = { enabled = true },
         }
 <
 
@@ -135,12 +156,15 @@ Available Commands for Kotlin Development:
 `:KotlinWorkspaceSymbols`      Search for symbols across the entire workspace
 `:KotlinTypeDefinition`        Go to type definition of symbol under cursor (v262+)
 `:KotlinImplementation`        Go to implementation of symbol under cursor (v262+)
+`:KotlinIncomingCalls`         Show callers of symbol under cursor (v262.4739.0+)
+`:KotlinOutgoingCalls`         Show what symbol under cursor calls (v262.4739.0+)
 `:KotlinReferences`            Find all references to symbol under cursor
 `:KotlinRename`                Rename symbol under cursor across the project
 `:KotlinCodeActions`           Show all available code actions from kotlin-lsp
 `:KotlinQuickFix`              Show quick fixes for diagnostics on current line
 `:KotlinInlayHintsToggle`      Toggle inlay hints for current buffer
 `:KotlinHintsToggle`           Toggle HINT severity diagnostics
+`:KotlinNewFromTemplate`       Pick an IntelliJ file template for current buffer (v262.4739.0+)
 `:KotlinExportWorkspaceToJson` Export workspace structure to workspace.json
 `:KotlinCleanWorkspace`        Clear cached indices for current project
 `:KotlinDebug [port]`          Attach debugger to JVM (see |kotlin.nvim.debugging|)
@@ -295,6 +319,64 @@ command. This feature is useful for decluttering the editor interface.
 Commands: ~
 
 `:KotlinHintsToggle` - Enable or disable diagnostic hints dynamically.
+
+==========================================================================================
+
+Call Hierarchy                                                  *kotlin.nvim.callhierarchy*
+
+kotlin.nvim exposes the LSP call-hierarchy capability introduced in
+kotlin-lsp v262.4739.0. Place the cursor on a Kotlin function or property and
+run one of the commands below.
+
+Commands: ~
+
+`:KotlinIncomingCalls`  Show who calls the symbol under cursor.
+`:KotlinOutgoingCalls`  Show which symbols are called from the symbol under cursor.
+
+These wrap |vim.lsp.buf.incoming_calls()| / |vim.lsp.buf.outgoing_calls()| —
+results land in the location list (or |trouble.nvim| if you have it bound to
+the location list).
+
+==========================================================================================
+
+Folding                                                                *kotlin.nvim.folding*
+
+When kotlin-lsp v262.4739.0+ is attached, the plugin sets the buffer's
+foldexpr to |vim.lsp.foldexpr()| and foldmethod to "expr", so functions,
+classes, blocks, imports, and multiline comments fold using the server's
+folding-range information.
+
+Disable per-buffer with `:setlocal nofoldenable`, or globally via:
+>lua
+    require("kotlin").setup {
+        folding = { enabled = false },
+    }
+<
+
+==========================================================================================
+
+File Templates                                                    *kotlin.nvim.filetemplates*
+
+When you create a new `*.kt` file the plugin asks kotlin-lsp v262.4739.0+ to
+interpolate an IntelliJ-style file template (Class, File, Interface, Data
+Class, Enum, Annotation, Object). The chosen template is rendered with
+predefined variables (${PACKAGE_NAME}, ${NAME}, ${USER}, ${DATE}, …) and
+inserted into the buffer; a literal `|` in the template becomes the cursor
+position.
+
+Commands: ~
+
+`:KotlinNewFromTemplate`  Pick a template and apply it to the current buffer.
+
+Configuration: ~
+>lua
+    require("kotlin").setup {
+        file_templates = {
+            -- enabled = false,  -- disable the prompt entirely
+            Class = "package ${PACKAGE_NAME}\n\nclass ${NAME} {\n\t|\n}",
+        },
+    }
+<
 
 ==========================================================================================
 

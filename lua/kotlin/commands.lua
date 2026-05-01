@@ -250,6 +250,34 @@ function M.implementation()
   vim.lsp.buf.implementation()
 end
 
+-- Show callers of the symbol under cursor (callHierarchy/incomingCalls).
+-- Requires kotlin-lsp v262.4739.0+.
+function M.incoming_calls()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.incoming_calls()
+end
+
+-- Show what the symbol under cursor calls (callHierarchy/outgoingCalls).
+-- Requires kotlin-lsp v262.4739.0+.
+function M.outgoing_calls()
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_ls", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+
+  vim.lsp.buf.outgoing_calls()
+end
+
 -- Rename symbol under cursor
 function M.rename_symbol()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -316,6 +344,18 @@ function M.setup()
     M.implementation()
   end, {
     desc = "Go to implementation of symbol under cursor",
+  })
+
+  vim.api.nvim_create_user_command("KotlinIncomingCalls", function()
+    M.incoming_calls()
+  end, {
+    desc = "Show callers of the symbol under cursor (call hierarchy)",
+  })
+
+  vim.api.nvim_create_user_command("KotlinOutgoingCalls", function()
+    M.outgoing_calls()
+  end, {
+    desc = "Show what the symbol under cursor calls (call hierarchy)",
   })
 
   vim.api.nvim_create_user_command("KotlinReferences", function()

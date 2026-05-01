@@ -89,7 +89,7 @@ Install the plugin with your package manager:
         "mason-lspconfig.nvim",
         "oil.nvim",
         "trouble.nvim",
-        "mfussenegger/nvim-dap",  -- Required for :KotlinDebug command
+        "mfussenegger/nvim-dap",
     },
     config = function()
         require("kotlin").setup {
@@ -115,7 +115,7 @@ Install the plugin with your package manager:
             --   Linux:   "/usr/lib/jvm/java-25-openjdk"
             --   Windows: "C:\\Program Files\\Java\\jdk-25"
             --   Env var: os.getenv("JAVA_HOME") or os.getenv("JDK25")
-            jre_path = nil,  -- Use bundled JRE (recommended)
+            jre_path = nil,
 
             -- Optional: JDK for symbol resolution (analyzing your Kotlin code)
             -- This is the JDK that your project code will be analyzed against
