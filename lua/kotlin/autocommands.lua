@@ -24,14 +24,14 @@ end
 -- Setup inlay hints for Kotlin files
 function M.setup_inlay_hints(opts)
   opts = opts or {}
-  
+
   if not opts.inlay_hints then
     return
   end
-  
+
   -- Create autogroup for inlay hints
   local augroup = api.nvim_create_augroup("KotlinInlayHints", { clear = true })
-  
+
   -- Enable inlay hints by default when a Kotlin LSP attaches
   api.nvim_create_autocmd("LspAttach", {
     group = augroup,
@@ -39,12 +39,12 @@ function M.setup_inlay_hints(opts)
       local client = vim.lsp.get_client_by_id(args.data.client_id)
       if client and client.name == "kotlin_ls" then
         local bufnr = args.buf
-        
+
         -- Check if the client supports inlay hints
         if client.server_capabilities.inlayHintProvider then
           -- Enable inlay hints by default unless explicitly disabled
           local should_enable = opts.inlay_hints.enabled ~= false
-          
+
           if should_enable then
             vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
           end
@@ -52,6 +52,41 @@ function M.setup_inlay_hints(opts)
       end
     end,
     desc = "Enable Kotlin inlay hints on LSP attach",
+  })
+end
+
+-- Wire LSP-driven folding for Kotlin buffers (textDocument/foldingRange).
+-- Requires kotlin-lsp v262.4739.0+ and Neovim 0.11+ (for vim.lsp.foldexpr).
+function M.setup_folding(opts)
+  opts = opts or {}
+
+  if opts.folding and opts.folding.enabled == false then
+    return
+  end
+
+  if not vim.lsp.foldexpr then
+    return
+  end
+
+  local augroup = api.nvim_create_augroup("KotlinFolding", { clear = true })
+
+  api.nvim_create_autocmd("LspAttach", {
+    group = augroup,
+    callback = function(args)
+      local client = vim.lsp.get_client_by_id(args.data.client_id)
+      if not (client and client.name == "kotlin_ls") then
+        return
+      end
+      if not client.server_capabilities.foldingRangeProvider then
+        return
+      end
+
+      vim.api.nvim_set_option_value("foldmethod", "expr", { scope = "local", win = 0 })
+      vim.api.nvim_set_option_value("foldexpr", "v:lua.vim.lsp.foldexpr()", { scope = "local", win = 0 })
+      -- Start with all folds open; users can close them manually with zc/zC.
+      vim.api.nvim_set_option_value("foldlevel", 99, { scope = "local", win = 0 })
+    end,
+    desc = "Enable LSP folding for Kotlin buffers",
   })
 end
 

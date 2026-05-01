@@ -1,6 +1,18 @@
 local M = {}
 
 function M.setup(opts)
+  opts = opts or {}
+
+  -- Register user commands eagerly so :KotlinHealth (and friends) are available
+  -- even when LSP startup fails. The LSP itself is wired lazily on FileType.
+  require("kotlin.commands").setup()
+  require("kotlin.dap").setup()
+  require("kotlin.file_templates").setup(opts)
+
+  vim.api.nvim_create_user_command("KotlinCleanWorkspace", function()
+    M.clean_workspace()
+  end, { desc = "Clean Kotlin LSP workspace for current project" })
+
   -- Create an autocommand group for kotlin-lsp
   local group = vim.api.nvim_create_augroup("kotlin_lsp", { clear = true })
 
@@ -12,13 +24,6 @@ function M.setup(opts)
     end,
     group = group,
   })
-
-  vim.api.nvim_create_user_command("KotlinCleanWorkspace", function()
-    M.clean_workspace()
-  end, { desc = "Clean Kotlin LSP workspace for current project" })
-
-  -- Set up DAP integration (optional, requires nvim-dap)
-  require("kotlin.dap").setup()
 end
 
 function M.get_workspace_base_dir()
@@ -57,13 +62,35 @@ function M.clean_workspace()
     vim.cmd("sleep 500m")
   end
 
-  -- Remove workspace directory if it exists
+  -- Remove workspace directory if it exists (plugin-managed state)
   if vim.fn.isdirectory(workspace_dir) == 1 then
     if is_windows then
       vim.fn.system('rmdir /s /q "' .. workspace_dir .. '"')
     else
-      vim.fn.system("rm -rf " .. workspace_dir)
+      vim.fn.system("rm -rf " .. vim.fn.shellescape(workspace_dir))
     end
+  end
+
+  -- v262.4739.0+: intellij-server also writes to the JetBrains analyzer cache
+  -- (RocksDB indexes, logs, etc.). Clean that too or stale locks will block restarts.
+  local jetbrains_cache
+  if is_windows then
+    local localappdata = os.getenv("LOCALAPPDATA")
+    jetbrains_cache = localappdata and (localappdata .. "\\JetBrains\\analyzer")
+  elseif vim.fn.has("mac") == 1 then
+    jetbrains_cache = os.getenv("HOME") .. "/Library/Caches/JetBrains/analyzer"
+  else
+    local xdg = os.getenv("XDG_CACHE_HOME") or (os.getenv("HOME") .. "/.cache")
+    jetbrains_cache = xdg .. "/JetBrains/analyzer"
+  end
+
+  if jetbrains_cache and vim.fn.isdirectory(jetbrains_cache) == 1 then
+    if is_windows then
+      vim.fn.system('rmdir /s /q "' .. jetbrains_cache .. '"')
+    else
+      vim.fn.system("rm -rf " .. vim.fn.shellescape(jetbrains_cache))
+    end
+    vim.notify("Cleaned JetBrains analyzer cache: " .. jetbrains_cache, vim.log.levels.INFO)
   end
 
   vim.notify("Workspace cleaned. Ready to restart Kotlin LSP.", vim.log.levels.INFO)
@@ -130,19 +157,24 @@ function M.setup_kotlin_lsp(opts)
   -- Create workspace directory
   vim.fn.mkdir(workspace_dir, "p")
 
-  -- Find Kotlin LSP installation directory
+  -- Find Kotlin LSP installation directory.
+  -- v262.4739.0+ Mason packages put everything under a versioned subdirectory
+  -- (e.g. kotlin-server-262.4739.0/) because the .sit/.tar.gz archive's root
+  -- changed. Older builds extracted directly into the package root. Probe both.
   local kotlin_lsp_dir = nil
 
   local mason_package_dir = vim.fn.expand("$MASON/packages/kotlin-lsp")
 
   if vim.fn.isdirectory(mason_package_dir) == 1 then
-    kotlin_lsp_dir = mason_package_dir
+    kotlin_lsp_dir = M.resolve_kotlin_lsp_dir(mason_package_dir, is_windows)
   end
 
   -- Fallback to environment variable if not found in Mason
   if not kotlin_lsp_dir then
-    kotlin_lsp_dir = os.getenv("KOTLIN_LSP_DIR")
-    if not kotlin_lsp_dir then
+    local env_dir = os.getenv("KOTLIN_LSP_DIR")
+    if env_dir then
+      kotlin_lsp_dir = M.resolve_kotlin_lsp_dir(env_dir, is_windows) or env_dir
+    else
       vim.notify(
         "KOTLIN_LSP_DIR environment variable is not set and Kotlin LSP not found in Mason",
         vim.log.levels.ERROR
@@ -158,49 +190,65 @@ function M.setup_kotlin_lsp(opts)
     return
   end
 
-  -- Build command: prefer the bundled launcher script, fall back to manual java invocation
+  -- Build command. Priority:
+  --   1. `bin/intellij-server`           — v262.4739.0+ native launcher. Manages its
+  --      own JBR; jre_path is ignored (the entry-point class lives in `modules/`,
+  --      not on `lib/*`, so a manual `java -cp lib/* …` can't work).
+  --   2. real `kotlin-lsp.sh` script     — old layout (pre-v262.4739.0). If the user
+  --      set jre_path, parse JVM args out of the script and invoke java directly;
+  --      otherwise just run the script.
+  --   3. manual `java -cp lib/* …`       — KOTLIN_LSP_DIR installs with no launcher.
   local cmd = nil
   local cmd_env = nil
 
-  local launcher_name = is_windows and "kotlin-lsp.cmd" or "kotlin-lsp.sh"
-  local launcher_path = kotlin_lsp_dir .. (is_windows and "\\" or "/") .. launcher_name
+  local sep = is_windows and "\\" or "/"
+  local intellij_server_name = is_windows and "intellij-server.exe" or "intellij-server"
+  local intellij_server_path = kotlin_lsp_dir .. sep .. "bin" .. sep .. intellij_server_name
+  local legacy_launcher_name = is_windows and "kotlin-lsp.cmd" or "kotlin-lsp.sh"
+  local legacy_launcher_path = kotlin_lsp_dir .. sep .. legacy_launcher_name
 
-  if vim.fn.executable(launcher_path) == 1 then
+  local has_intellij_server = vim.fn.executable(intellij_server_path) == 1
+  local has_legacy_launcher = vim.fn.executable(legacy_launcher_path) == 1
+
+  if has_intellij_server then
     if opts.jre_path then
-      -- Custom JRE requested: parse JVM args from the launcher script and invoke java directly
-      local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
-      if not java_bin then
-        return
-      end
-
-      local jvm_args = M.parse_launcher_jvm_args(launcher_path, is_windows)
-      cmd = { java_bin }
-      vim.list_extend(cmd, jvm_args)
-
-      local cp_separator = is_windows and "\\" or "/"
-      vim.list_extend(cmd, {
-        "-cp",
-        lib_dir .. cp_separator .. "*",
-        "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
-        "--stdio",
-        "--system-path=" .. workspace_dir,
-      })
-    else
-      -- Use the bundled launcher script (handles JRE, JVM args, classpath internally)
-      cmd = { launcher_path, "--stdio", "--system-path=" .. workspace_dir }
+      vim.notify(
+        "kotlin.nvim: ignoring jre_path since bin/intellij-server (v262.4739.0+) manages its own JBR. "
+          .. "Remove jre_path or downgrade kotlin-lsp if you need a custom JRE.",
+        vim.log.levels.WARN
+      )
     end
-  else
-    -- No launcher script: construct java command manually (KOTLIN_LSP_DIR installs)
+    cmd = { intellij_server_path, "--stdio", "--system-path=" .. workspace_dir }
+  elseif has_legacy_launcher and opts.jre_path then
+    -- Legacy layout, custom JRE: invoke java directly with JVM args parsed from the script.
     local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
     if not java_bin then
       return
     end
+    local jvm_args = M.parse_launcher_jvm_args(legacy_launcher_path, is_windows)
 
-    local cp_separator = is_windows and "\\" or "/"
+    cmd = { java_bin }
+    vim.list_extend(cmd, jvm_args)
+    vim.list_extend(cmd, {
+      "-cp",
+      lib_dir .. sep .. "*",
+      "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
+      "--stdio",
+      "--system-path=" .. workspace_dir,
+    })
+  elseif has_legacy_launcher then
+    cmd = { legacy_launcher_path, "--stdio", "--system-path=" .. workspace_dir }
+  else
+    -- No launcher at all: manual java invocation. Only viable for legacy installs
+    -- where com.jetbrains.ls.kotlinLsp.KotlinLspServerKt is on `lib/*`.
+    local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
+    if not java_bin then
+      return
+    end
     cmd = {
       java_bin,
       "-cp",
-      lib_dir .. cp_separator .. "*",
+      lib_dir .. sep .. "*",
       "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
       "--stdio",
       "--system-path=" .. workspace_dir,
@@ -214,7 +262,7 @@ function M.setup_kotlin_lsp(opts)
 
   require("kotlin.autocommands").setup()
   require("kotlin.autocommands").setup_inlay_hints(opts)
-  require("kotlin.commands").setup()
+  require("kotlin.autocommands").setup_folding(opts)
   require("kotlin.diagnostics").setup()
   require("kotlin.package").setup()
 
@@ -250,11 +298,22 @@ function M.setup_kotlin_lsp(opts)
   end
 
   -- Build initialization options (sent during LSP initialization)
-  local init_options = {}
+  local init_options = vim.empty_dict()
 
-  -- JDK for symbol resolution goes in init_options, not settings (matching VSCode)
+  -- JDK for symbol resolution goes in init_options, not settings (matching VSCode).
+  -- v262.4739.0 renamed this from defaultJdk → defaultSdk; we send both for
+  -- backwards compatibility with older builds.
   if opts.jdk_for_symbol_resolution then
+    init_options.defaultSdk = opts.jdk_for_symbol_resolution
     init_options.defaultJdk = opts.jdk_for_symbol_resolution
+  end
+
+  -- buildTools: map of workspace folder URI → build importer ("gradle", "maven",
+  -- "" for none, or omitted for any). Mirrors the VSCode `intellij.buildTool`
+  -- setting (LSP-807). Keyed by the workspace root URI.
+  if opts.build_tool ~= nil then
+    local workspace_uri = vim.uri_from_fname(current_dir)
+    init_options.buildTools = { [workspace_uri] = opts.build_tool }
   end
 
   vim.lsp.config.kotlin_ls = {
@@ -268,6 +327,13 @@ function M.setup_kotlin_lsp(opts)
       textDocument = {
         inlayHint = {
           dynamicRegistration = true,
+        },
+        foldingRange = {
+          dynamicRegistration = false,
+          lineFoldingOnly = true,
+        },
+        callHierarchy = {
+          dynamicRegistration = false,
         },
       },
     },
@@ -338,6 +404,29 @@ function M.setup_kotlin_lsp(opts)
 end
 
 M.settings = { uri_timeout_ms = 5000 }
+
+-- Resolve the actual kotlin-lsp install root inside `base_dir`.
+-- v262.4739.0+ Mason packages put everything under a versioned subdirectory
+-- (e.g. base_dir/kotlin-server-262.4739.0/); older builds extracted directly
+-- into base_dir. We pick whichever variant contains a `lib/` directory.
+function M.resolve_kotlin_lsp_dir(base_dir, is_windows)
+  local sep = is_windows and "\\" or "/"
+
+  -- Direct layout (legacy): base_dir/lib/
+  if vim.fn.isdirectory(base_dir .. sep .. "lib") == 1 then
+    return base_dir
+  end
+
+  -- Versioned layout (v262.4739.0+): base_dir/kotlin-server-*/lib/
+  local matches = vim.fn.glob(base_dir .. sep .. "kotlin-server-*", false, true)
+  for _, dir in ipairs(matches) do
+    if vim.fn.isdirectory(dir .. sep .. "lib") == 1 then
+      return dir
+    end
+  end
+
+  return nil
+end
 
 -- Parse JVM arguments from the bundled launcher script.
 -- Extracts --add-opens, --enable-native-access, -D, and -X flags.
