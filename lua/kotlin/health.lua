@@ -86,8 +86,11 @@ local function check_install()
     err("lib/ directory not found at " .. lib)
   end
 
-  local intellij_server =
-    resolved .. sep .. "bin" .. sep .. (is_windows() and "intellij-server.exe" or "intellij-server")
+  local intellij_server = resolved
+    .. sep
+    .. "bin"
+    .. sep
+    .. (is_windows() and "intellij-server.exe" or "intellij-server")
   local legacy = resolved .. sep .. (is_windows() and "kotlin-lsp.cmd" or "kotlin-lsp.sh")
 
   if vim.fn.executable(intellij_server) == 1 then
@@ -137,7 +140,9 @@ local function check_jre()
     info("No `java` on PATH")
   end
 
-  info("Note: when bin/intellij-server is the chosen launcher it uses its bundled JBR; the JREs above only matter if you set jre_path or fall back to the manual classpath path.")
+  info(
+    "Note: when bin/intellij-server is the chosen launcher it uses its bundled JBR; the JREs above only matter if you set jre_path or fall back to the manual classpath path."
+  )
 end
 
 local function check_clients()

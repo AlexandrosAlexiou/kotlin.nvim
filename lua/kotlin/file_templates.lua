@@ -6,13 +6,13 @@ local M = {}
 -- Each template uses Apache Velocity syntax; the server interpolates ${PACKAGE_NAME},
 -- ${NAME}, ${USER}, ${DATE}, etc. The literal `|` marks the desired caret position.
 M.default_templates = {
-  Class = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\nclass ${NAME} {\n\t|\n}",
-  File = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\n|",
-  Interface = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\ninterface ${NAME} {\n\t|\n}",
-  ["Data Class"] = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\ndata class ${NAME}(|)\n",
-  Enum = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\nenum class ${NAME} {\n\t|\n}",
-  Annotation = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\nannotation class ${NAME}(|)",
-  Object = "#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != \"\")package ${PACKAGE_NAME}\n\n#end\nobject ${NAME} {\n\t|\n}",
+  Class = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\nclass ${NAME} {\n\t|\n}',
+  File = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\n|',
+  Interface = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\ninterface ${NAME} {\n\t|\n}',
+  ["Data Class"] = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\ndata class ${NAME}(|)\n',
+  Enum = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\nenum class ${NAME} {\n\t|\n}',
+  Annotation = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\nannotation class ${NAME}(|)',
+  Object = '#if (${PACKAGE_NAME} && ${PACKAGE_NAME} != "")package ${PACKAGE_NAME}\n\n#end\nobject ${NAME} {\n\t|\n}',
 }
 
 -- Order in which templates are presented in the picker (matches VSCode UX).
@@ -73,7 +73,7 @@ local function apply_content(bufnr, content)
     local total = vim.api.nvim_buf_line_count(bufnr)
     caret_line = math.min(caret_line, total - 1)
     local line_text = vim.api.nvim_buf_get_lines(bufnr, caret_line, caret_line + 1, false)[1] or ""
-    caret_col = math.min(caret_col, #line_text)
+    caret_col = math.min(#line_text, caret_col)
     vim.api.nvim_win_set_cursor(0, { caret_line + 1, caret_col })
   end
 end

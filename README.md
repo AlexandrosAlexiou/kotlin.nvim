@@ -76,8 +76,8 @@ Install the plugin with your package manager:
 - [oil.nvim](https://github.com/stevearc/oil.nvim) - File explorer for package navigation (used by "Go to Definition" on package declarations)
 - [trouble.nvim](https://github.com/folke/trouble.nvim) - Enhanced quickfix/location list UI (required for `:KotlinSymbols` and `:KotlinWorkspaceSymbols` commands to display document outline and workspace symbols)
 
-**Optional:**
-- [nvim-dap](https://github.com/mfussenegger/nvim-dap) - Debug Adapter Protocol client (required for `:KotlinDebug` command)
+**Optional (install and configure separately):**
+- [nvim-dap](https://github.com/mfussenegger/nvim-dap) - Debug Adapter Protocol client. Required for `:KotlinDebug`. kotlin.nvim does not install or configure nvim-dap for you — set it up once globally (signs, keymaps, optional UI) and kotlin.nvim will register a `kotlin` adapter on top.
 
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 ```lua
@@ -89,7 +89,10 @@ Install the plugin with your package manager:
         "mason-lspconfig.nvim",
         "oil.nvim",
         "trouble.nvim",
-        "mfussenegger/nvim-dap",
+        -- nvim-dap is NOT a kotlin.nvim dependency. Install and configure it
+        -- separately (signs, keymaps, optionally nvim-dap-ui). kotlin.nvim only
+        -- registers a `kotlin` adapter and the `:KotlinDebug` command on top.
+        -- See the "Debugging Support" section below for details.
     },
     config = function()
         require("kotlin").setup {
@@ -500,6 +503,8 @@ Both default to JDWP port **5005**.
 ```
 
 The plugin registers a `kotlin` DAP adapter automatically. It is only set if not already configured by the user, so you can fully customize it in your nvim-dap setup.
+
+For breakpoint, stepping, REPL, and variable inspection workflows, see `:help dap.txt`. These are standard nvim-dap features and are not Kotlin-specific.
 
 > [!note]
 > nvim-dap is an optional dependency. If it is not installed, DAP features are silently skipped and the rest of the plugin works normally.
