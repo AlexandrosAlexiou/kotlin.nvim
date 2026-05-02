@@ -77,7 +77,7 @@ Install the plugin with your package manager:
 - [trouble.nvim](https://github.com/folke/trouble.nvim) - Enhanced quickfix/location list UI (required for `:KotlinSymbols` and `:KotlinWorkspaceSymbols` commands to display document outline and workspace symbols)
 
 **Optional (install and configure separately):**
-- [nvim-dap](https://github.com/mfussenegger/nvim-dap) - Debug Adapter Protocol client. Required for `:KotlinDebug`. kotlin.nvim does not install or configure nvim-dap for you — set it up once globally (signs, keymaps, optional UI) and kotlin.nvim will register a `kotlin` adapter on top.
+- Debug Adapter Protocol client ([nvim-dap](https://github.com/mfussenegger/nvim-dap)). Required for `:KotlinDebug`. kotlin.nvim does not install or configure nvim-dap for you — set it up once globally (signs, keymaps, optional UI) and kotlin.nvim will register a `kotlin` adapter on top.
 
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 ```lua
@@ -414,6 +414,23 @@ end, { desc = 'Toggle inlay hints' })
 #### Implementation Note
 
 Inlay hints work by implementing a `workspace/configuration` handler that responds to server requests for the `jetbrains.kotlin` configuration section. The handler builds a properly nested configuration object matching the VSCode extension format. This is crucial because kotlin-lsp requests configuration dynamically rather than using only the initial settings.
+
+### Code Folding
+
+When enabled (the default on kotlin-lsp v262.4739.0+ and Neovim 0.11+), the plugin wires `foldmethod=expr` with `foldexpr=v:lua.vim.lsp.foldexpr()` and sets `foldlevel=99` so files open with all folds expanded. Fold ranges (Kotlin functions, classes, blocks, imports, multiline comments) are pulled from kotlin-lsp via the standard `textDocument/foldingRange` request. To opt out, set `folding = { enabled = false }` in your setup.
+
+Folding uses standard Vim keymaps — kotlin.nvim does not bind its own:
+
+| Keymap | Action |
+|--------|--------|
+| `zo`   | Open fold under cursor |
+| `zc`   | Close fold under cursor |
+| `za`   | Toggle fold under cursor |
+| `zR`   | Open all folds in the buffer |
+| `zM`   | Close all folds in the buffer |
+| `zj` / `zk` | Jump to next / previous fold |
+
+See `:help fold-commands` for the full list.
 
 ### Available Commands
 
