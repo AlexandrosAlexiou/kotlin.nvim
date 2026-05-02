@@ -139,19 +139,49 @@ function M.setup(opts)
 
   local augroup = vim.api.nvim_create_augroup("KotlinFileTemplates", { clear = true })
 
-  -- Mark new Kotlin files so the LspAttach handler knows to prompt for a template
-  -- once the server is ready. We can't run interpolateFileTemplate before attach.
-  vim.api.nvim_create_autocmd("BufNewFile", {
+  -- Try to prompt now if the buffer is empty and kotlin_ls is attached.
+  -- Otherwise mark it pending so LspAttach can pick it up later.
+  -- The `kotlin_template_prompted` flag prevents re-prompting on every
+  -- BufEnter (tab switches, window cycling, etc.).
+  local function try_prompt(bufnr)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+      return
+    end
+    if vim.b[bufnr].kotlin_template_prompted then
+      return
+    end
+    if not buffer_is_empty(bufnr) then
+      -- Buffer has content now; drop any stale pending mark from earlier.
+      vim.b[bufnr].kotlin_pending_template = nil
+      return
+    end
+
+    local clients = vim.lsp.get_clients({ bufnr = bufnr, name = "kotlin_ls" })
+    if #clients == 0 then
+      vim.b[bufnr].kotlin_pending_template = true
+      return
+    end
+
+    vim.b[bufnr].kotlin_template_prompted = true
+    vim.b[bufnr].kotlin_pending_template = nil
+    M.prompt_and_apply(bufnr, opts)
+  end
+
+  -- Cover all the ways a user might land on an empty Kotlin buffer:
+  --   BufNewFile  — :e on a non-existent path
+  --   BufReadPost — :e on an existing empty file
+  --   BufEnter    — switching to the buffer via oil/yazi/snacks/telescope/tabs
+  vim.api.nvim_create_autocmd({ "BufNewFile", "BufReadPost", "BufEnter" }, {
     group = augroup,
     pattern = "*.kt",
     callback = function(args)
-      if buffer_is_empty(args.buf) then
-        vim.b[args.buf].kotlin_pending_template = true
-      end
+      try_prompt(args.buf)
     end,
-    desc = "Mark new Kotlin file for templating",
+    desc = "Prompt for Kotlin file template on empty buffer",
   })
 
+  -- Backstop: if the LSP attaches *after* we marked the buffer pending
+  -- (BufEnter fired before kotlin_ls came up), prompt as soon as it's ready.
   vim.api.nvim_create_autocmd("LspAttach", {
     group = augroup,
     callback = function(args)
@@ -162,13 +192,7 @@ function M.setup(opts)
       if not vim.b[args.buf].kotlin_pending_template then
         return
       end
-      vim.b[args.buf].kotlin_pending_template = nil
-
-      if not buffer_is_empty(args.buf) then
-        return
-      end
-
-      M.prompt_and_apply(args.buf, opts)
+      try_prompt(args.buf)
     end,
     desc = "Prompt for Kotlin file template on first LSP attach",
   })
