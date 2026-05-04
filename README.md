@@ -1,4 +1,8 @@
 <!-- markdownlint-disable -->
+
+> [!warning]
+> DAP support is not yet finalized in the plugin. There is a known issue with the kotlin-lsp debug adapter. See [Kotlin/kotlin-lsp#198](https://github.com/Kotlin/kotlin-lsp/issues/198) for details.
+
 <br />
 <div align="center">
   <a href="https://github.com/AlexandrosAlexiou/kotlin.nvim">
