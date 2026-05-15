@@ -147,15 +147,15 @@ end
 
 local function check_clients()
   start("Active LSP clients")
-  local clients = vim.lsp.get_clients({ name = "kotlin_ls" })
+  local clients = vim.lsp.get_clients({ name = "kotlin_lsp" })
 
   if #clients == 0 then
-    info("No kotlin_ls client attached. Open a .kt file in a Kotlin project to start the server.")
+    info("No kotlin_lsp client attached. Open a .kt file in a Kotlin project to start the server.")
     return
   end
 
   for _, c in ipairs(clients) do
-    ok(("kotlin_ls (id=%d) attached to %d buffer(s)"):format(c.id, vim.tbl_count(c.attached_buffers or {})))
+    ok(("kotlin_lsp (id=%d) attached to %d buffer(s)"):format(c.id, vim.tbl_count(c.attached_buffers or {})))
     info("  cmd: " .. vim.inspect(c.config.cmd))
 
     local caps = c.server_capabilities or {}
