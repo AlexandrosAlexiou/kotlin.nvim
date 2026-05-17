@@ -27,7 +27,7 @@ end
 -- Organize imports in the current buffer
 function M.organize_imports()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -72,7 +72,7 @@ end
 -- Enhanced code actions for Kotlin - shows only Kotlin-specific actions
 function M.code_actions()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -92,7 +92,7 @@ end
 -- Quick fix for the diagnostic under cursor (if any)
 function M.quick_fix()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -122,7 +122,7 @@ end
 -- Format the current buffer using kotlin-lsp
 function M.format_buffer()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -131,7 +131,7 @@ function M.format_buffer()
 
   vim.lsp.buf.format({
     async = false,
-    name = "kotlin_lsp",
+    name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp",
   })
 
   vim.notify("Buffer formatted", vim.log.levels.INFO)
@@ -140,7 +140,7 @@ end
 -- Show document symbols (outline)
 function M.document_symbols()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -201,7 +201,7 @@ end
 
 -- Search workspace symbols
 function M.workspace_symbols()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp" })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp" })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not running", vim.log.levels.ERROR)
@@ -214,7 +214,7 @@ end
 -- Find all references to symbol under cursor
 function M.find_references()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -227,7 +227,7 @@ end
 -- Go to type definition of symbol under cursor
 function M.type_definition()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -240,7 +240,7 @@ end
 -- Go to implementation of symbol under cursor
 function M.implementation()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -254,7 +254,7 @@ end
 -- Requires kotlin-lsp v262.4739.0+.
 function M.incoming_calls()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -268,7 +268,7 @@ end
 -- Requires kotlin-lsp v262.4739.0+.
 function M.outgoing_calls()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
@@ -281,7 +281,7 @@ end
 -- Rename symbol under cursor
 function M.rename_symbol()
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp", bufnr = bufnr })
 
   if #clients == 0 then
     vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)

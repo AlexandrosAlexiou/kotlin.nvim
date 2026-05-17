@@ -147,7 +147,7 @@ end
 
 local function check_clients()
   start("Active LSP clients")
-  local clients = vim.lsp.get_clients({ name = "kotlin_lsp" })
+  local clients = vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp" })
 
   if #clients == 0 then
     info("No kotlin_lsp client attached. Open a .kt file in a Kotlin project to start the server.")
