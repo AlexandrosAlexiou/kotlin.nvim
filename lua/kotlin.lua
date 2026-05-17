@@ -56,7 +56,7 @@ function M.clean_workspace()
   vim.notify("Cleaning workspace for " .. project_name, vim.log.levels.INFO)
 
   -- Stop existing Kotlin LSP clients
-  for _, client in ipairs(vim.lsp.get_clients({ name = "kotlin_lsp" })) do
+  for _, client in ipairs(vim.lsp.get_clients({ name = vim.lsp._enabled_configs["kotlin_ls"] and "kotlin_ls" or "kotlin_lsp" })) do
     vim.notify("Stopping Kotlin LSP...", vim.log.levels.INFO)
     vim.lsp.stop_client(client.id)
     vim.cmd("sleep 500m")
@@ -219,6 +219,7 @@ function M.setup_kotlin_lsp(opts)
       )
     end
     cmd = { intellij_server_path, "--stdio", "--system-path=" .. workspace_dir }
+    vim.lsp.enable("kotlin_lsp")
   elseif has_legacy_launcher and opts.jre_path then
     -- Legacy layout, custom JRE: invoke java directly with JVM args parsed from the script.
     local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
@@ -236,6 +237,7 @@ function M.setup_kotlin_lsp(opts)
       "--stdio",
       "--system-path=" .. workspace_dir,
     })
+    vim.lsp.enable("kotlin_ls")
   elseif has_legacy_launcher then
     cmd = { legacy_launcher_path, "--stdio", "--system-path=" .. workspace_dir }
   else
@@ -253,6 +255,7 @@ function M.setup_kotlin_lsp(opts)
       "--stdio",
       "--system-path=" .. workspace_dir,
     }
+    vim.lsp.enable("kotlin_ls")
   end
 
   -- Pass additional JVM args via IJ_JAVA_OPTIONS environment variable
@@ -399,8 +402,6 @@ function M.setup_kotlin_lsp(opts)
       end,
     },
   }
-
-  vim.lsp.enable("kotlin_lsp")
 end
 
 M.settings = { uri_timeout_ms = 5000 }
