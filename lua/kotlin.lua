@@ -397,7 +397,18 @@ function M.setup_kotlin_lsp(opts)
         end
         return result
       end,
+      -- The completion apply command positions the caret via showDocument;
+      -- place it in the current buffer instead of switching windows/scrolling.
+      ["window/showDocument"] = function(_, params, ctx)
+        return require("kotlin.completion").show_document(params, ctx)
+      end,
     },
+    -- Make command-driven completion behave like the VS Code client (client
+    -- inserts nothing, server applies text/imports/caret). Completion is
+    -- otherwise broken in Neovim. See lua/kotlin/completion.lua for the details.
+    on_init = function(client)
+      require("kotlin.completion").attach(client)
+    end,
   }
 
   -- Enable only after the config above is assigned, otherwise a stray client

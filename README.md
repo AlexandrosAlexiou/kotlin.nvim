@@ -342,6 +342,28 @@ The latest kotlin-lsp versions offer significantly improved code completion:
 - ~30% better completion latency
 - More relevant and context-aware suggestions
 
+#### Completion insertion fix
+
+kotlin-lsp does not put the inserted text in its completion items. Each item
+carries an empty `textEdit` plus a `jetbrains.kotlin.completion.apply` command,
+and the server applies the real text + caret afterwards via `workspace/applyEdit`
+and `window/showDocument`. VS Code's client inserts nothing on accept and lets
+the command do the work, so it just works there. Neovim frontends (builtin
+completion, nvim-cmp, blink.cmp) insert the item text *and* run the command, so
+the server's edit lands on top and the caret ends up mid-identifier — accepting
+`App` produces `Ap|p`.
+
+kotlin.nvim fixes this automatically by making Neovim behave like the VS Code
+client: we turn the client's own insertion into a no-op and keep the apply
+command, so the server performs the real insertion. You get the full
+behaviour — text, **auto-import**, parentheses and caret — in every completion
+engine (builtin completion, nvim-cmp, blink.cmp). No configuration required.
+
+> [!NOTE]
+> This relies on the frontend executing the completion item's `command` (builtin,
+> nvim-cmp and blink.cmp all do). The proper fix is still upstream returning a
+> real `textEdit`.
+
 ### Inlay Hints Support
 
 Full support for LSP inlay hints matching the VSCode extension configuration. All hint types are supported with individual toggles.
