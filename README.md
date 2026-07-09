@@ -67,7 +67,7 @@
 
 > [!note]
 > **Version Requirements:**
-> - The plugin prefers the new `bin/intellij-server` launcher (kotlin-lsp **v262.4739.0+**) and falls back to the legacy `kotlin-lsp.sh` / `kotlin-lsp.cmd` script for older builds.
+> - The plugin launches kotlin-lsp via its `bin/intellij-server` native launcher, which requires kotlin-lsp **v262.4739.0+**. Older builds that only ship the `kotlin-lsp.sh` / `kotlin-lsp.cmd` shim are no longer supported — update your install.
 > - Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
 > - Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
 > - Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
@@ -75,7 +75,20 @@
 > - "Go to Type Definition" and "Go to Implementation" require kotlin-lsp **v262+**.
 > - Maven project import is supported starting from kotlin-lsp **v262+**.
 > - Call hierarchy, LSP folding, file templates and the `build_tool` option require kotlin-lsp **v262.4739.0+**.
-> - kotlin-lsp **v262.4739.0+** requires JDK 25 to run the server (the bundled JRE meets this; if you set `jre_path` make sure it points to a JDK 25 install).
+> - No separate JDK is required to run the server — `bin/intellij-server` uses its own bundled JBR.
+
+## 🚚 Migrating to v2
+
+**v2 drops support for the legacy kotlin-lsp launcher.** The plugin now launches the server exclusively through `bin/intellij-server` (kotlin-lsp **v262.4739.0+**); the old `kotlin-lsp.sh` / `kotlin-lsp.cmd` shims and the manual `java -cp lib/* …` fallback are gone.
+
+To migrate:
+
+1. **Update kotlin-lsp** to v262.4739.0 or later: `:MasonInstall kotlin-lsp` (or `:MasonUpdate`).
+2. **Remove `jre_path`** from your `require("kotlin").setup{}` — the option no longer exists (`bin/intellij-server` manages its own bundled JBR). Custom JVM flags still go through `jvm_args`.
+3. Run `:checkhealth kotlin` to confirm the `bin/intellij-server` launcher is detected.
+
+> [!tip]
+> Need the old shell-script launcher or a custom `jre_path` (e.g. you're pinned to a pre-v262.4739.0 kotlin-lsp)? Stay on the v1 line by pinning the last v1 release in your plugin manager, e.g. lazy.nvim: `{ "AlexandrosAlexiou/kotlin.nvim", version = "v1.4.0" }`.
 
 ## 📦 Installation
 
@@ -116,24 +129,9 @@ Install the plugin with your package manager:
                 "settings.gradle",
             },
 
-            -- Optional: Java Runtime to run the kotlin-lsp server itself
-            -- LEGACY ONLY — ignored on v262.4739.0+ (bin/intellij-server manages
-            -- its own JBR; a warning is shown if this is set on a new install).
-            -- Only useful with older builds that ship kotlin-lsp.sh / kotlin-lsp.cmd.
-            --
-            -- When set, the plugin parses JVM args from the bundled launcher script
-            -- and invokes your custom JRE with the correct flags
-            -- Must point to JAVA_HOME (directory containing bin/java)
-            -- Examples:
-            --   macOS:   "/Library/Java/JavaVirtualMachines/jdk-25.jdk/Contents/Home"
-            --   Linux:   "/usr/lib/jvm/java-25-openjdk"
-            --   Windows: "C:\\Program Files\\Java\\jdk-25"
-            --   Env var: os.getenv("JAVA_HOME") or os.getenv("JDK25")
-            jre_path = nil,
-
             -- Optional: JDK for symbol resolution (analyzing your Kotlin code)
             -- This is the JDK that your project code will be analyzed against
-            -- Different from jre_path (which runs the server)
+            -- (the server itself runs on bin/intellij-server's bundled JBR)
             -- Required for: Analyzing JDK APIs, standard library symbols, platform types
             --
             -- Usually should match your project's target JDK version
@@ -266,43 +264,14 @@ The plugin searches upward from the opened file's directory, so it will find the
 
 When using the Mason-installed kotlin-lsp (v261+), no separate JDK installation is required. The language server includes platform-specific builds with a bundled JRE, providing a truly zero-dependency setup experience.
 
-### Understanding JRE and JDK Options
+### JDK for Code Analysis
 
-kotlin.nvim provides two separate Java-related configuration options that serve different purposes:
+kotlin.nvim runs the language server through `bin/intellij-server`, which ships
+its own bundled JBR — you do **not** need to install or configure a Java runtime
+to *run* the server. The only Java-related option is which JDK your code is
+*analyzed* against:
 
-#### 1. `jre_path` - Java Runtime for the LSP Server
-
-**Purpose:** Specifies which Java runtime should be used to **run the kotlin-lsp server process itself**.
-
-**When to use:**
-- You want to run kotlin-lsp with a specific Java version
-- You have specific JVM compatibility requirements for the server
-
-When `jre_path` is set, the plugin parses JVM arguments from the bundled launcher
-script and invokes your custom JRE with the correct flags. When not set, the
-bundled launcher script handles everything automatically.
-
-**Examples:**
-```lua
--- macOS
-jre_path = "/Library/Java/JavaVirtualMachines/jdk-21.jdk/Contents/Home"
-
--- Linux
-jre_path = "/usr/lib/jvm/java-21-openjdk"
-
--- Windows
-jre_path = "C:\\Program Files\\Java\\jdk-21"
-
--- Environment variable
-jre_path = os.getenv("JAVA_HOME")
-
--- SDKMAN installation
-jre_path = os.getenv("HOME") .. "/.sdkman/candidates/java/21.0.1-tem"
-```
-
-**Recommendation:** Leave as `nil` to use the bundled launcher and JRE (simplest setup).
-
-#### 2. `jdk_for_symbol_resolution` - JDK for Code Analysis
+#### `jdk_for_symbol_resolution` - JDK for Code Analysis
 
 **Purpose:** Specifies which JDK should be used to **analyze your Kotlin code** and resolve symbols/APIs.
 
@@ -327,13 +296,6 @@ return {
 ```
 
 **Recommendation:** Set this to match your project's target JDK version for accurate symbol resolution.
-
-#### Quick Reference
-
-| Option | Purpose | Default | Typical Use Case |
-|--------|---------|---------|------------------|
-| `jre_path` | Run the LSP server | Bundled JRE (Mason) | Legacy only (pre-v262.4739.0) |
-| `jdk_for_symbol_resolution` | Analyze your code | Auto-detect | Match project JDK version |
 
 ### Enhanced Code Completion
 
@@ -581,11 +543,7 @@ You can easily install kotlin-lsp using [Mason][6] with the following command:
 
 This is the recommended approach as Mason handles the installation automatically and includes platform-specific builds with a bundled JRE (zero-dependency installation). **No separate JDK installation is required** when using the Mason-installed kotlin-lsp.
 
-The plugin auto-detects the launcher in the following order:
-
-1. `bin/intellij-server` — the new native launcher introduced in **v262.4739.0** (preferred).
-2. `kotlin-lsp.sh` / `kotlin-lsp.cmd` — the deprecated shim used by older builds. Still works, but JetBrains will remove it in a future release.
-3. A manual `java -cp lib/* …KotlinLspServerKt --stdio` fallback for installs that contain only `lib/`.
+The plugin launches kotlin-lsp through its `bin/intellij-server` native launcher (introduced in **v262.4739.0**), which manages its own bundled JBR. Older builds that only ship the `kotlin-lsp.sh` / `kotlin-lsp.cmd` shim are no longer supported — update your install if the launcher is missing.
 
 ### Option 2: Manual Installation
 
@@ -595,41 +553,28 @@ If you prefer not to use Mason or need to use a specific version of kotlin-lsp, 
 export KOTLIN_LSP_DIR=/path/to/your/kotlin-lsp
 ```
 
-The plugin will automatically detect and use your manual installation when the environment variable is set. Either layout below is supported:
+The plugin will automatically detect and use your manual installation when the environment variable is set. The install must contain the `bin/intellij-server` launcher (kotlin-lsp v262.4739.0+):
 
 ```
-# v262.4739.0+ (preferred)
 $KOTLIN_LSP_DIR/
 ├── bin/
 │   └── intellij-server    (Unix/macOS launcher; .exe on Windows)
-├── kotlin-lsp.sh          (deprecated shim, optional)
-├── kotlin-lsp.cmd         (deprecated shim, optional)
-└── lib/
-    └── ... (jar files)
-
-# Pre-v262.4739.0
-$KOTLIN_LSP_DIR/
-├── kotlin-lsp.sh
-├── kotlin-lsp.cmd
 └── lib/
     └── ... (jar files)
 ```
 
 > [!important]
-> Download the official kotlin-lsp distribution from [GitHub releases](https://github.com/Kotlin/kotlin-lsp/releases) to make sure a launcher is bundled. The plugin can fall back to a manual `java -cp lib/* …` invocation if no launcher is present, but you'll need a JDK 25 install on `PATH` or via `jre_path` for that path.
+> Download the official kotlin-lsp distribution from [GitHub releases](https://github.com/Kotlin/kotlin-lsp/releases) to make sure the `bin/intellij-server` launcher is bundled. Older builds that only ship the `kotlin-lsp.sh` / `kotlin-lsp.cmd` shim are no longer supported.
 
-### Custom JRE
+### Extra JVM Arguments
 
-> [!warning]
-> **v262.4739.0+:** The new `bin/intellij-server` launcher manages its own bundled JBR. `jre_path` is **ignored** on these versions and a warning is shown if set. This option is only useful with older builds that ship `kotlin-lsp.sh` / `kotlin-lsp.cmd`.
-
-If you need to run an **older** kotlin-lsp with a specific Java runtime (e.g., for compatibility or performance), use the `jre_path` configuration option. The plugin parses the JVM arguments from the legacy `kotlin-lsp.sh` launcher and invokes your custom JRE directly with the correct flags.
+`bin/intellij-server` manages its own bundled JBR, so there is no JRE to configure. To pass extra JVM arguments (e.g., `-Xmx4g`) to the server, use the `jvm_args` option — they are forwarded via the `IJ_JAVA_OPTIONS` environment variable, which the kotlin-lsp server reads at startup.
 
 ```lua
-jre_path = "/path/to/jdk-25"  -- Must point to JAVA_HOME (directory containing bin/java); JDK 25+ required for v262.4739.0+
+require("kotlin").setup {
+    jvm_args = { "-Xmx4g" },
+}
 ```
-
-Additional JVM arguments (e.g., `-Xmx4g`) are passed via the `IJ_JAVA_OPTIONS` environment variable, which is read by the kotlin-lsp server at startup.
 
 > [!caution]
 > If you use other tools like [nvim-lspconfig][8] or [mason-lspconfig][7], make sure to explicitly exclude the `kotlin_lsp` configuration there to avoid conflicts.

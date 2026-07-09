@@ -37,10 +37,6 @@ setup({opts})                                                          *kotlin.s
             • root_markers: List of files to identify project root
                 Default: {"build.gradle", "build.gradle.kts", "pom.xml", "mvnw"}
                 Overrides the defaults entirely when specified
-            • jre_path: Path to JRE for running the language server
-                Note: only honoured when a legacy kotlin-lsp.sh launcher is
-                present; the new bin/intellij-server native launcher manages
-                its own JVM. v262.4739.0+ requires JDK 25.
             • jvm_args: Additional JVM arguments for the language server
                 (passed via the IJ_JAVA_OPTIONS environment variable)
             • jdk_for_symbol_resolution: Path to JDK for symbol resolution
@@ -66,7 +62,6 @@ setup({opts})                                                          *kotlin.s
 >lua
         require("kotlin").setup {
             root_markers = { "gradlew", ".git", "settings.gradle" },
-            jre_path = "/path/to/jdk-25",
             jvm_args = { "-Xmx4g" },
             jdk_for_symbol_resolution = "/path/to/jdk-21",
             build_tool = "gradle",

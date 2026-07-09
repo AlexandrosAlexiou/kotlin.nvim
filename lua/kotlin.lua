@@ -183,77 +183,25 @@ function M.setup_kotlin_lsp(opts)
     end
   end
 
-  -- Check that the lib directory exists
-  local lib_dir = kotlin_lsp_dir .. (is_windows and "\\lib" or "/lib")
-  if vim.fn.isdirectory(lib_dir) == 0 then
-    vim.notify("The 'lib' directory does not exist at: " .. lib_dir, vim.log.levels.ERROR)
-    return
-  end
-
-  -- Build command. Priority:
-  --   1. `bin/intellij-server`           — v262.4739.0+ native launcher. Manages its
-  --      own JBR; jre_path is ignored (the entry-point class lives in `modules/`,
-  --      not on `lib/*`, so a manual `java -cp lib/* …` can't work).
-  --   2. real `kotlin-lsp.sh` script     — old layout (pre-v262.4739.0). If the user
-  --      set jre_path, parse JVM args out of the script and invoke java directly;
-  --      otherwise just run the script.
-  --   3. manual `java -cp lib/* …`       — KOTLIN_LSP_DIR installs with no launcher.
-  local cmd = nil
-  local cmd_env = nil
-
+  -- Launch via bin/intellij-server, the native launcher shipped with
+  -- kotlin-lsp v262.4739.0+. It manages its own bundled JBR, so there is no
+  -- JRE or classpath to configure here.
   local sep = is_windows and "\\" or "/"
   local intellij_server_name = is_windows and "intellij-server.exe" or "intellij-server"
   local intellij_server_path = kotlin_lsp_dir .. sep .. "bin" .. sep .. intellij_server_name
-  local legacy_launcher_name = is_windows and "kotlin-lsp.cmd" or "kotlin-lsp.sh"
-  local legacy_launcher_path = kotlin_lsp_dir .. sep .. legacy_launcher_name
 
-  local has_intellij_server = vim.fn.executable(intellij_server_path) == 1
-  local has_legacy_launcher = vim.fn.executable(legacy_launcher_path) == 1
-
-  if has_intellij_server then
-    if opts.jre_path then
-      vim.notify(
-        "kotlin.nvim: ignoring jre_path since bin/intellij-server (v262.4739.0+) manages its own JBR. "
-          .. "Remove jre_path or downgrade kotlin-lsp if you need a custom JRE.",
-        vim.log.levels.WARN
-      )
-    end
-    cmd = { intellij_server_path, "--stdio", "--system-path=" .. workspace_dir }
-  elseif has_legacy_launcher and opts.jre_path then
-    -- Legacy layout, custom JRE: invoke java directly with JVM args parsed from the script.
-    local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
-    if not java_bin then
-      return
-    end
-    local jvm_args = M.parse_launcher_jvm_args(legacy_launcher_path)
-
-    cmd = { java_bin }
-    vim.list_extend(cmd, jvm_args)
-    vim.list_extend(cmd, {
-      "-cp",
-      lib_dir .. sep .. "*",
-      "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
-      "--stdio",
-      "--system-path=" .. workspace_dir,
-    })
-  elseif has_legacy_launcher then
-    cmd = { legacy_launcher_path, "--stdio", "--system-path=" .. workspace_dir }
-  else
-    -- No launcher at all: manual java invocation. Only viable for legacy installs
-    -- where com.jetbrains.ls.kotlinLsp.KotlinLspServerKt is on `lib/*`.
-    local java_bin = M.resolve_java_bin(opts.jre_path, is_windows)
-    if not java_bin then
-      return
-    end
-    cmd = {
-      java_bin,
-      "-cp",
-      lib_dir .. sep .. "*",
-      "com.jetbrains.ls.kotlinLsp.KotlinLspServerKt",
-      "--stdio",
-      "--system-path=" .. workspace_dir,
-    }
+  if vim.fn.executable(intellij_server_path) ~= 1 then
+    vim.notify(
+      "kotlin.nvim: bin/intellij-server not found at "
+        .. intellij_server_path
+        .. ". kotlin-lsp v262.4739.0+ is required — run :MasonInstall kotlin-lsp or update your install.",
+      vim.log.levels.ERROR
+    )
+    return
   end
+
+  local cmd = { intellij_server_path, "--stdio", "--system-path=" .. workspace_dir }
+  local cmd_env = nil
 
   -- Pass additional JVM args via IJ_JAVA_OPTIONS environment variable
   if opts.jvm_args and type(opts.jvm_args) == "table" and #opts.jvm_args > 0 then
@@ -439,78 +387,6 @@ function M.resolve_kotlin_lsp_dir(base_dir, is_windows)
   end
 
   return nil
-end
-
--- Parse JVM arguments from the bundled launcher script.
--- Extracts --add-opens, --enable-native-access, -D, and -X flags.
-function M.parse_launcher_jvm_args(launcher_path)
-  local args = {}
-  local content = vim.fn.readfile(launcher_path)
-
-  for _, line in ipairs(content) do
-    -- Strip trailing backslash (sh) or caret (cmd) continuation characters and whitespace
-    local trimmed = line:gsub("[\\^]%s*$", ""):match("^%s*(.-)%s*$")
-
-    if
-      trimmed:match("^%-%-add%-opens%s")
-      or trimmed:match("^%-%-enable%-native%-access")
-      or trimmed:match("^%-D")
-      or trimmed:match("^%-X")
-    then
-      -- Split on whitespace in case --add-opens and its value are on the same token
-      for token in trimmed:gmatch("%S+") do
-        table.insert(args, token)
-      end
-    end
-  end
-
-  return args
-end
-
--- Resolve a java binary for the fallback path (when no launcher script is available).
--- Priority: 1. User-specified jre_path, 2. JAVA_HOME, 3. System java
-function M.resolve_java_bin(jre_path, is_windows)
-  local java_bin = "java"
-  local java_executable = is_windows and "java.exe" or "java"
-
-  if jre_path then
-    java_bin = jre_path .. "/bin/" .. java_executable
-    if vim.fn.executable(java_bin) ~= 1 then
-      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
-      return nil
-    end
-  elseif vim.env.JAVA_HOME then
-    java_bin = vim.env.JAVA_HOME .. "/bin/" .. java_executable
-    if vim.fn.executable(java_bin) ~= 1 then
-      vim.notify("Java executable not found at: " .. java_bin, vim.log.levels.ERROR)
-      return nil
-    end
-  else
-    if vim.fn.executable("java") ~= 1 then
-      vim.notify(
-        "No Java runtime found. Please install Java or configure jre_path in your setup.",
-        vim.log.levels.ERROR
-      )
-      return nil
-    end
-  end
-
-  -- Verify JRE version
-  local jre = require("kotlin.jre")
-  if not jre.is_supported_version(java_bin) then
-    vim.notify(
-      string.format(
-        "Java version %d or higher is required to run Kotlin LSP.\n"
-          .. "Please set jre_path in your config to point to a JRE installation with version %d or higher.",
-        jre.minimum_supported_jre_version,
-        jre.minimum_supported_jre_version
-      ),
-      vim.log.levels.ERROR
-    )
-    return nil
-  end
-
-  return java_bin
 end
 
 return M
