@@ -96,9 +96,70 @@ function M.clean_workspace()
   vim.notify("Workspace cleaned. Ready to restart Kotlin LSP.", vim.log.levels.INFO)
 end
 
+-- Search upward from `start_dir` for `filename`, returning its path or nil.
+local function find_file_upward(filename, start_dir)
+  local dir = start_dir
+  while dir and dir ~= "" do
+    local filepath = dir .. "/" .. filename
+    if vim.fn.filereadable(filepath) == 1 then
+      return filepath
+    end
+    local parent = vim.fn.fnamemodify(dir, ":h")
+    if parent == dir then
+      break
+    end
+    dir = parent
+  end
+  return nil
+end
+
+-- Whether Kotlin LSP should stay off for this buffer: either the buffer-local
+-- flag is set, or a `.disable-kotlin-lsp` marker exists at or above the file.
+local function is_kotlin_lsp_disabled(bufnr)
+  if vim.b[bufnr].disable_kotlin_lsp then
+    return true
+  end
+
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local buf_dir = name ~= "" and vim.fn.fnamemodify(name, ":p:h") or vim.fn.getcwd()
+  return find_file_upward(".disable-kotlin-lsp", buf_dir) ~= nil
+end
+
+-- Undo a prior `vim.lsp.enable("kotlin_lsp")` so Neovim's built-in auto-start
+-- stops firing, and detach any client already running on this buffer. Needed
+-- because enablement is global and sticky: once we've enabled the config for
+-- one buffer, dropping a `.disable-kotlin-lsp` marker (or setting the buffer
+-- flag) afterwards would otherwise be ignored until nvim restarts.
+local function disable_kotlin_lsp(bufnr)
+  vim.lsp.enable("kotlin_lsp", false)
+  for _, client in ipairs(vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })) do
+    vim.lsp.stop_client(client.id)
+  end
+end
+
+-- Resolve the project root for `bufnr`, honoring the priority-grouped
+-- `root_markers` (a list of marker groups, highest priority first) exactly like
+-- Neovim's own `root_markers` resolution. Accepts a flat list too. Falls back
+-- to the current working directory when no marker matches.
+local function resolve_root(bufnr, root_markers, fallback)
+  local groups = type(root_markers[1]) == "string" and { root_markers } or root_markers
+  for _, group in ipairs(groups) do
+    local root = vim.fs.root(bufnr, group)
+    if root then
+      return root
+    end
+  end
+  return fallback
+end
+
 function M.setup_kotlin_lsp(opts)
-  -- Check for buffer-local disable flag
-  if vim.b.disable_kotlin_lsp then
+  -- Honor the buffer flag / `.disable-kotlin-lsp` marker. This reactive check
+  -- also stops a client already running on this buffer. The config's `root_dir`
+  -- veto (below) is what authoritatively prevents *starts* regardless of which
+  -- FileType autocmd fires first, but stopping here handles the case where the
+  -- marker/flag is dropped while a client is live.
+  if is_kotlin_lsp_disabled(0) then
+    disable_kotlin_lsp(0)
     return
   end
 
@@ -109,28 +170,6 @@ function M.setup_kotlin_lsp(opts)
   local buf_dir = vim.fn.expand("%:p:h")
   if buf_dir == "" or buf_dir == "." then
     buf_dir = vim.fn.getcwd()
-  end
-
-  -- Search upward from the buffer directory for marker/config files
-  local function find_file_upward(filename, start_dir)
-    local dir = start_dir
-    while dir and dir ~= "" do
-      local filepath = dir .. "/" .. filename
-      if vim.fn.filereadable(filepath) == 1 then
-        return filepath
-      end
-      local parent = vim.fn.fnamemodify(dir, ":h")
-      if parent == dir then
-        break
-      end
-      dir = parent
-    end
-    return nil
-  end
-
-  -- Check for marker file that disables Kotlin LSP
-  if find_file_upward(".disable-kotlin-lsp", buf_dir) then
-    return
   end
 
   local current_dir = vim.fn.getcwd()
@@ -269,6 +308,16 @@ function M.setup_kotlin_lsp(opts)
     cmd_env = cmd_env,
     filetypes = { "kotlin" },
     root_markers = root_markers,
+    -- Authoritative disable gate. Neovim consults this at start time, so a
+    -- `.disable-kotlin-lsp` marker (or the buffer flag) is honored even when
+    -- Neovim's built-in `nvim.lsp.enable` FileType autocmd fires before this
+    -- plugin's. Not calling `on_dir` tells Neovim not to start a client.
+    root_dir = function(bufnr, on_dir)
+      if is_kotlin_lsp_disabled(bufnr) then
+        return
+      end
+      on_dir(resolve_root(bufnr, root_markers, current_dir))
+    end,
     settings = settings,
     init_options = init_options,
     capabilities = {
