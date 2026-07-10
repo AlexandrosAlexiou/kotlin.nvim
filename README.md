@@ -587,16 +587,6 @@ require("kotlin").setup {
 - [trouble.nvim][12]
 - [nvim-dap][13]
 
-## Star History
-
-<a href="https://www.star-history.com/?repos=alexandrosalexiou%2Fkotlin.nvim&type=date&legend=bottom-right">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=alexandrosalexiou/kotlin.nvim&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=alexandrosalexiou/kotlin.nvim&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=alexandrosalexiou/kotlin.nvim&type=date&legend=top-left" />
- </picture>
-</a>
-
 [1]: https://microsoft.github.io/language-server-protocol/
 [2]: https://neovim.io/
 [3]: https://github.com/Kotlin/kotlin-lsp/
