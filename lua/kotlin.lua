@@ -297,14 +297,6 @@ function M.setup_kotlin_lsp(opts)
     init_options.defaultJdk = opts.jdk_for_symbol_resolution
   end
 
-  -- buildTools: map of workspace folder URI → build importer ("gradle", "maven",
-  -- "" for none, or omitted for any). Mirrors the VSCode `intellij.buildTool`
-  -- setting (LSP-807). Keyed by the workspace root URI.
-  if opts.build_tool ~= nil then
-    local workspace_uri = vim.uri_from_fname(current_dir)
-    init_options.buildTools = { [workspace_uri] = opts.build_tool }
-  end
-
   vim.lsp.config.kotlin_lsp = {
     cmd = cmd,
     cmd_env = cmd_env,
@@ -322,6 +314,16 @@ function M.setup_kotlin_lsp(opts)
     end,
     settings = settings,
     init_options = init_options,
+    -- buildTools must be keyed by the actual resolved workspace root, not getcwd().
+    -- Calculate it in before_init when the client's rootUri is known.
+    before_init = function(params, config)
+      if opts.build_tool ~= nil and params.rootUri then
+        if not config.init_options.buildTools then
+          config.init_options.buildTools = {}
+        end
+        config.init_options.buildTools[params.rootUri] = opts.build_tool
+      end
+    end,
     capabilities = {
       textDocument = {
         inlayHint = {
