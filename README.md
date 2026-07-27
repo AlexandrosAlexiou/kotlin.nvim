@@ -162,6 +162,7 @@ Install the plugin with your package manager:
                 lambda_receivers_parameters = true,  -- Show lambda receivers/parameters
                 value_ranges = true,  -- Show value ranges
                 kotlin_time = true,  -- Show kotlin.time warnings
+                call_chains = false,  -- Show call-chain intermediate types (default false)
             },
 
             -- Optional: LSP-driven folding (requires kotlin-lsp v262.4739.0+)
@@ -344,7 +345,7 @@ require("kotlin").setup {
 
 #### All Available Settings
 
-All settings default to `true` except `parameters_excluded`. Only specify settings you want to change:
+All settings default to `true` except `parameters_excluded` and `call_chains`. Only specify settings you want to change:
 
 ```lua
 require("kotlin").setup {
@@ -369,6 +370,7 @@ require("kotlin").setup {
         -- Other hints
         value_ranges = true,  -- Show hints for ranges
         kotlin_time = true,  -- Show kotlin.time warnings
+        call_chains = false,  -- someList.filter{}.map{}: List<T> at each step (usually false)
     },
 }
 ```
@@ -389,6 +391,7 @@ require("kotlin").setup {
 | `lambda_receivers_parameters` | `true` | Show receiver and parameter hints for lambdas |
 | `value_ranges` | `true` | Show hints for value ranges |
 | `kotlin_time` | `true` | Show kotlin.time package warnings |
+| `call_chains` | `false` | Show intermediate result types in method-call chains |
 
 #### Commands
 
