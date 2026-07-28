@@ -270,6 +270,7 @@ function M.setup_kotlin_lsp(opts)
   -- Add inlay hints configuration if specified
   -- These are flat boolean settings at the top level, matching VSCode extension format
   if opts.inlay_hints then
+    -- stylua: ignore start
     settings["jetbrains.kotlin.hints.parameters"] = opts.inlay_hints.parameters ~= false
     settings["jetbrains.kotlin.hints.parameters.compiled"] = opts.inlay_hints.parameters_compiled ~= false
     settings["jetbrains.kotlin.hints.parameters.excluded"] = opts.inlay_hints.parameters_excluded == true
@@ -278,10 +279,11 @@ function M.setup_kotlin_lsp(opts)
     settings["jetbrains.kotlin.hints.type.function.return"] = opts.inlay_hints.function_return ~= false
     settings["jetbrains.kotlin.hints.type.function.parameter"] = opts.inlay_hints.function_parameter ~= false
     settings["jetbrains.kotlin.hints.settings.lambda.return"] = opts.inlay_hints.lambda_return ~= false
-    settings["jetbrains.kotlin.hints.lambda.receivers.parameters"] = opts.inlay_hints.lambda_receivers_parameters
-      ~= false
+    settings["jetbrains.kotlin.hints.lambda.receivers.parameters"] = opts.inlay_hints.lambda_receivers_parameters ~= false
     settings["jetbrains.kotlin.hints.settings.value.ranges"] = opts.inlay_hints.value_ranges ~= false
     settings["jetbrains.kotlin.hints.value.kotlin.time"] = opts.inlay_hints.kotlin_time ~= false
+    settings["jetbrains.kotlin.hints.call.chains"] = opts.inlay_hints.call_chains == true
+    -- stylua: ignore end
   end
 
   -- Build initialization options (sent during LSP initialization)
@@ -379,6 +381,9 @@ function M.setup_kotlin_lsp(opts)
                   kotlin = {
                     time = opts.inlay_hints.kotlin_time ~= false,
                   },
+                },
+                call = {
+                  chains = opts.inlay_hints.call_chains == true,
                 },
               }
             end
