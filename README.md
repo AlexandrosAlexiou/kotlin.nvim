@@ -327,6 +327,20 @@ engine (builtin completion, nvim-cmp, blink.cmp). No configuration required.
 > nvim-cmp and blink.cmp all do). The proper fix is still upstream returning a
 > real `textEdit`.
 
+> [!TIP]
+> Since the server inserts brackets itself (e.g. `firstOrNull { }`), disable your
+> frontend's client-side auto-brackets for Kotlin or you'll get an extra
+> trailing `()`. For blink.cmp:
+>
+> ```lua
+> completion = {
+>   accept = { auto_brackets = { blocked_filetypes = { "kotlin" } } },
+> }
+> ```
+>
+> For nvim-cmp + nvim-autopairs, add `kotlin` to the `confirm_done` handler's
+> `filetypes` blocklist.
+
 ### Inlay Hints Support
 
 Full support for LSP inlay hints matching the VSCode extension configuration. All hint types are supported with individual toggles.
