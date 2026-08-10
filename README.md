@@ -70,7 +70,7 @@
 > - The plugin launches kotlin-lsp via its `bin/intellij-server` native launcher, which requires kotlin-lsp **v262.4739.0+**. Older builds that only ship the `kotlin-lsp.sh` / `kotlin-lsp.cmd` shim are no longer supported — update your install.
 > - Workspace isolation with the `--system-path` parameter requires kotlin-lsp **v0.253.10629** or later.
 > - Zero-dependencies platform-specific builds are supported -- no JDK required by default as the language server bundles its own (kotlin-lsp **v261+** or later).
-> - Inlay hints require kotlin-lsp **v261+** and are configured using the exact format from the VSCode extension.
+> - Inlay hints require kotlin-lsp **v261+**. The server requests the `jetbrains.kotlin` configuration section dynamically and only renders hints whose option is answered with `true` — kotlin.nvim implements this handler, so the kotlin_lsp client must be started by kotlin.nvim (see the mason-lspconfig note below).
 > - Code formatting and organize imports require kotlin-lsp **v0.253+** with IntelliJ IDEA-based formatting support.
 > - "Go to Type Definition" and "Go to Implementation" require kotlin-lsp **v262+**.
 > - Maven project import is supported starting from kotlin-lsp **v262+**.
@@ -102,6 +102,16 @@ Install the plugin with your package manager:
 
 **Optional (install and configure separately):**
 - Debug Adapter Protocol client ([nvim-dap](https://github.com/mfussenegger/nvim-dap)). Required for `:KotlinDebug`. kotlin.nvim does not install or configure nvim-dap for you — set it up once globally (signs, keymaps, optional UI) and kotlin.nvim will register a `kotlin` adapter on top.
+
+> [!important]
+> **Using mason-lspconfig?** Do not let it auto-enable `kotlin_lsp`. mason-lspconfig's `automatic_enable` starts
+> kotlin_lsp from nvim-lspconfig's default config *before* kotlin.nvim configures it. That client lacks the `workspace/configuration` handler kotlin-lsp needs, so **all inlay hints disappear** and kotlin.nvim settings are ignored. Exclude kotlin_lsp and let kotlin.nvim start it:
+>
+> ```lua
+> require("mason-lspconfig").setup {
+>     automatic_enable = { exclude = { "kotlin_lsp" } },
+> }
+> ```
 
 ### [lazy.nvim](https://github.com/folke/lazy.nvim)
 ```lua
@@ -154,6 +164,7 @@ Install the plugin with your package manager:
                 parameters = true,  -- Show parameter names
                 parameters_compiled = true,  -- Show compiled parameter names
                 parameters_excluded = false,  -- Show excluded parameter names
+                parameters_context = false,  -- Show context parameter hints
                 types_property = true,  -- Show property types
                 types_variable = true,  -- Show local variable types
                 function_return = true,  -- Show function return types
@@ -359,7 +370,7 @@ require("kotlin").setup {
 
 #### All Available Settings
 
-All settings default to `true` except `parameters_excluded` and `call_chains`. Only specify settings you want to change:
+All settings default to `true` except `parameters_excluded`, `parameters_context` and `call_chains`. Only specify settings you want to change:
 
 ```lua
 require("kotlin").setup {
@@ -370,6 +381,7 @@ require("kotlin").setup {
         parameters = true,  -- foo(name: "value", age: 42)
         parameters_compiled = true,  -- Show parameter names for compiled code
         parameters_excluded = false,  -- Show hints for excluded parameters (usually false)
+        parameters_context = false,  -- Show context parameter hints (usually false)
 
         -- Type hints (show inferred types)
         types_property = true,  -- val name: String = "foo"
@@ -397,6 +409,7 @@ require("kotlin").setup {
 | `parameters` | `true` | Show parameter names in function calls |
 | `parameters_compiled` | `true` | Show parameter names for compiled/external functions |
 | `parameters_excluded` | `false` | Show parameter names for excluded parameters |
+| `parameters_context` | `false` | Show context parameter hints |
 | `types_property` | `true` | Show type hints for properties |
 | `types_variable` | `true` | Show type hints for local variables |
 | `function_return` | `true` | Show return type hints for functions |
@@ -425,7 +438,7 @@ end, { desc = 'Toggle inlay hints' })
 
 #### Implementation Note
 
-Inlay hints work by implementing a `workspace/configuration` handler that responds to server requests for the `jetbrains.kotlin` configuration section. The handler builds a properly nested configuration object matching the VSCode extension format. This is crucial because kotlin-lsp requests configuration dynamically rather than using only the initial settings.
+Inlay hints work by implementing a `workspace/configuration` handler that responds to server requests for the `jetbrains.kotlin` configuration section — kotlin-lsp requests configuration dynamically on every inlay hint request rather than using only the initial settings. The server flattens the response into dot-paths and string-matches them against IntelliJ's declarative inlay hint optionIds (`hints.parameters`, `hints.type.property`, `hints.lambda.return`, `hints.value.ranges`, ...), and only renders hints whose optionId is answered with `true`. Note that the key names deliberately differ from the JetBrains VS Code extension's `package.json` for four options — the extension contributes bundle name keys (`hints.settings.types.property`, ...) that the server never matches.
 
 ### Code Folding
 
