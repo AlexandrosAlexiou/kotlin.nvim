@@ -152,6 +152,34 @@ local function resolve_root(bufnr, root_markers, fallback)
   return fallback
 end
 
+-- Map plugin options to kotlin-lsp inlay hint optionIds, keyed by their path
+-- under the `jetbrains.kotlin.hints` section. The server flattens the
+-- workspace/configuration response for `jetbrains.kotlin` into dot-paths and
+-- string-matches them against IntelliJ's declarative inlay hint optionIds
+-- (InlayInfoOption.kt), so these keys must spell the optionIds exactly.
+-- Note: JetBrains' own VS Code package.json uses the bundle nameKeys
+-- (`hints.settings.types.property`, ...) for four of these — those never
+-- matched and must not be copied here.
+local function inlay_hint_options(inlay)
+  -- stylua: ignore start
+  return {
+    ["parameters"] = inlay.parameters ~= false,
+    ["parameters.compiled"] = inlay.parameters_compiled ~= false,
+    ["parameters.excluded"] = inlay.parameters_excluded == true,
+    ["parameters.context"] = inlay.parameters_context == true,
+    ["type.property"] = inlay.types_property ~= false,
+    ["type.variable"] = inlay.types_variable ~= false,
+    ["type.function.return"] = inlay.function_return ~= false,
+    ["type.function.parameter"] = inlay.function_parameter ~= false,
+    ["lambda.return"] = inlay.lambda_return ~= false,
+    ["lambda.receivers.parameters"] = inlay.lambda_receivers_parameters ~= false,
+    ["value.ranges"] = inlay.value_ranges ~= false,
+    ["value.kotlin.time"] = inlay.kotlin_time ~= false,
+    ["call.chains"] = inlay.call_chains == true,
+  }
+  -- stylua: ignore end
+end
+
 function M.setup_kotlin_lsp(opts)
   -- Honor the buffer flag / `.disable-kotlin-lsp` marker. This reactive check
   -- also stops a client already running on this buffer. The config's `root_dir`
@@ -263,27 +291,17 @@ function M.setup_kotlin_lsp(opts)
   local root_markers = opts.root_markers or default_root_markers
 
   -- Build LSP settings with support for new features
+  ---@type table<string, integer|boolean>
   local settings = {
     uri_timeout_ms = 5000,
   }
 
   -- Add inlay hints configuration if specified
-  -- These are flat boolean settings at the top level, matching VSCode extension format
+  -- These are flat boolean settings at the top level, one per optionId
   if opts.inlay_hints then
-    -- stylua: ignore start
-    settings["jetbrains.kotlin.hints.parameters"] = opts.inlay_hints.parameters ~= false
-    settings["jetbrains.kotlin.hints.parameters.compiled"] = opts.inlay_hints.parameters_compiled ~= false
-    settings["jetbrains.kotlin.hints.parameters.excluded"] = opts.inlay_hints.parameters_excluded == true
-    settings["jetbrains.kotlin.hints.settings.types.property"] = opts.inlay_hints.types_property ~= false
-    settings["jetbrains.kotlin.hints.settings.types.variable"] = opts.inlay_hints.types_variable ~= false
-    settings["jetbrains.kotlin.hints.type.function.return"] = opts.inlay_hints.function_return ~= false
-    settings["jetbrains.kotlin.hints.type.function.parameter"] = opts.inlay_hints.function_parameter ~= false
-    settings["jetbrains.kotlin.hints.settings.lambda.return"] = opts.inlay_hints.lambda_return ~= false
-    settings["jetbrains.kotlin.hints.lambda.receivers.parameters"] = opts.inlay_hints.lambda_receivers_parameters ~= false
-    settings["jetbrains.kotlin.hints.settings.value.ranges"] = opts.inlay_hints.value_ranges ~= false
-    settings["jetbrains.kotlin.hints.value.kotlin.time"] = opts.inlay_hints.kotlin_time ~= false
-    settings["jetbrains.kotlin.hints.call.chains"] = opts.inlay_hints.call_chains == true
-    -- stylua: ignore end
+    for option, enabled in pairs(inlay_hint_options(opts.inlay_hints)) do
+      settings["jetbrains.kotlin.hints." .. option] = enabled
+    end
   end
 
   -- Build initialization options (sent during LSP initialization)
@@ -347,47 +365,13 @@ function M.setup_kotlin_lsp(opts)
           local section = item.section
 
           if section == "jetbrains.kotlin" then
-            -- Server requested the jetbrains.kotlin section
-            -- Build a nested object from our flat settings
-            local kotlin_config = { hints = {} }
+            -- The server flattens this response into dot-paths and only
+            -- renders hints whose optionId is present with value true, so
+            -- the keys under `hints` must spell the optionIds exactly.
+            local kotlin_config = vim.empty_dict()
 
             if opts.inlay_hints then
-              kotlin_config.hints = {
-                parameters = opts.inlay_hints.parameters ~= false,
-                ["parameters.compiled"] = opts.inlay_hints.parameters_compiled ~= false,
-                ["parameters.excluded"] = opts.inlay_hints.parameters_excluded == true,
-                settings = {
-                  types = {
-                    property = opts.inlay_hints.types_property ~= false,
-                    variable = opts.inlay_hints.types_variable ~= false,
-                  },
-                  lambda = {
-                    ["return"] = opts.inlay_hints.lambda_return ~= false,
-                  },
-                  value = {
-                    ranges = opts.inlay_hints.value_ranges ~= false,
-                  },
-                },
-                type = {
-                  ["function"] = {
-                    ["return"] = opts.inlay_hints.function_return ~= false,
-                    parameter = opts.inlay_hints.function_parameter ~= false,
-                  },
-                },
-                lambda = {
-                  receivers = {
-                    parameters = opts.inlay_hints.lambda_receivers_parameters ~= false,
-                  },
-                },
-                value = {
-                  kotlin = {
-                    time = opts.inlay_hints.kotlin_time ~= false,
-                  },
-                },
-                call = {
-                  chains = opts.inlay_hints.call_chains == true,
-                },
-              }
+              kotlin_config = { hints = inlay_hint_options(opts.inlay_hints) }
             end
 
             table.insert(result, kotlin_config)

@@ -48,7 +48,8 @@ setup({opts})                                                          *kotlin.s
                 Requires kotlin-lsp v262.4739.0+. Mirrors VSCode's
                 `intellij.buildTool` setting (LSP-807).
             • inlay_hints: Configuration for inlay hints (see |kotlin.nvim.inlayhints|)
-                All settings default to true (except parameters_excluded)
+                All settings default to true (except parameters_excluded,
+                parameters_context and call_chains)
             • folding: { enabled = boolean } — enable LSP-driven folding
                 for Kotlin buffers. Default true. Requires kotlin-lsp
                 v262.4739.0+ and Neovim 0.11+.
@@ -78,8 +79,8 @@ setup({opts})                                                          *kotlin.s
 
 Inlay Hints                                                      *kotlin.nvim.inlayhints*
 
-kotlin.nvim provides full LSP inlay hints support matching the VSCode extension
-configuration format. All hint types can be individually enabled or disabled.
+kotlin.nvim provides full LSP inlay hints support. All hint types can be
+individually enabled or disabled.
 
 Requirements: ~
 - kotlin-lsp version 0.254 or later
@@ -98,14 +99,17 @@ Minimal configuration enables all hints with defaults:
 
 Configuration Options: ~
 
-All settings are optional and default to `true` (except `parameters_excluded`
-which defaults to `false`). Only specify settings you want to change.
+All settings are optional and default to `true` (except `parameters_excluded`,
+`parameters_context` and `call_chains` which default to `false`). Only specify
+settings you want to change.
 
 enabled                     Master switch to enable/disable all inlay hints
 parameters                  Show parameter names in function calls
                             Example: foo(name: "value", age: 42)
 parameters_compiled         Show parameter names for compiled/external functions
 parameters_excluded         Show parameter names for excluded parameters
+                            Usually kept false
+parameters_context          Show context parameter hints
                             Usually kept false
 types_property              Show type hints for properties
                             Example: val name: String = "foo"
@@ -120,6 +124,8 @@ lambda_return               Show return type hints for lambdas
 lambda_receivers_parameters Show receiver and parameter hints for lambdas
 value_ranges                Show hints for value ranges
 kotlin_time                 Show kotlin.time package warnings
+call_chains                 Show intermediate result types in method-call
+                            chains. Usually kept false
 
 Complete Example: ~
 >lua
@@ -129,6 +135,7 @@ Complete Example: ~
             parameters = true,
             parameters_compiled = true,
             parameters_excluded = false,
+            parameters_context = false,
             types_property = true,
             types_variable = true,
             function_return = true,
@@ -137,6 +144,7 @@ Complete Example: ~
             lambda_receivers_parameters = true,
             value_ranges = true,
             kotlin_time = true,
+            call_chains = false,
         },
     }
 <
@@ -235,10 +243,12 @@ inlay hints. Use `KotlinInlayHintsToggle` for LSP inlay hints.
 Implementation: ~
 
 Inlay hints work by implementing a workspace/configuration handler that
-responds to server requests. When kotlin-lsp requests the "jetbrains.kotlin"
-configuration section, the plugin builds a properly nested object structure
-matching the VSCode extension format. This dynamic configuration request
-handling is crucial for inlay hints to work.
+responds to server requests. kotlin-lsp requests the "jetbrains.kotlin"
+configuration section on every inlay hint request, flattens the response into
+dot-paths and matches them against IntelliJ's declarative inlay hint
+optionIds (hints.parameters, hints.type.property, hints.lambda.return, ...).
+Only hints whose optionId is answered with true are rendered, so the client
+that handles this request must be the one started by kotlin.nvim.
 
 ==========================================================================================
 
