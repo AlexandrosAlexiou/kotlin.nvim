@@ -12,6 +12,7 @@ Folding ····································
 File Templates ···················································· |kotlin.nvim.filetemplates|
 Workspace Management ··············································· |kotlin.nvim.workspace|
 Disabling LSP ·························································· |kotlin.nvim.disable|
+IntelliJ Extensions ·················································· |kotlin.nvim.intellij|
 Debugging ···························································· |kotlin.nvim.debugging|
 
 ==========================================================================================
@@ -41,8 +42,7 @@ setup({opts})                                                          *kotlin.s
                 (passed via the IJ_JAVA_OPTIONS environment variable)
             • jdk_for_symbol_resolution: Path to JDK for symbol resolution
                 (typically the JDK installation path, e.g., "/path/to/jdk-21")
-                Forwarded to the server as `defaultSdk` (and `defaultJdk` for
-                backwards compat with builds before v262.4739.0).
+                Forwarded to the server as `defaultSdk`.
             • build_tool: Preferred build importer for the workspace.
                 One of: "gradle", "maven", "" (none), or nil (server picks).
                 Requires kotlin-lsp v262.4739.0+. Mirrors VSCode's
@@ -58,6 +58,43 @@ setup({opts})                                                          *kotlin.s
                 name → Velocity template to override the defaults (Class,
                 File, Interface, Data Class, Enum, Annotation, Object).
                 Requires kotlin-lsp v262.4739.0+.
+            • projects: List of externally configured projects to import
+                (VSCode `intellij.projects`), each
+                { type = "gradle"|"maven"|"bazel"|"jps"|"json"|"subproject",
+                  path = <build file or dir, absolute or relative to root>,
+                  java_home = ?, env = ?, system_properties = ?,
+                  project_path = ? (bazel) }.
+                Requires kotlin-lsp v263.4702.0+.
+            • reload_workspace: { on_build_file_save = "ask"|"always"|"never" }
+                Re-import when a build file is saved. Default "ask".
+                Requires kotlin-lsp v263.4702.0+.
+            • code_lens: { enabled = boolean, icons = table|false,
+                align = boolean } — Run/Debug lenses above `main` functions.
+                Default enabled. `icons` maps the server's codicon names
+                (play, debug) to text (default: Nerd Font glyphs; false =
+                text only); `align` draws the lens at the line's indent
+                (default true). Requires kotlin-lsp v263.4702.0+ and nvim-dap
+                to execute them.
+            • dap: { console = "integratedTerminal"|"internalConsole"|
+                "externalTerminal", build_before_run = boolean,
+                configurations = boolean } — where a launched program's
+                output goes (default integratedTerminal), whether plain JVM
+                launches run the server's build command first (default true),
+                and whether default entries are added to
+                dap.configurations.kotlin/java (default true).
+            • java_files: boolean — also attach to Java buffers of a project
+                whose server is already running, like the VS Code client, so
+                unsaved Java edits reach Kotlin analysis immediately. A Java
+                file alone never starts the server. The Kotlin server has no
+                Java language features of its own (definition, symbols,
+                completion return empty). Default true.
+            • data_sharing: "none"|"anonymous"|"full" — JetBrains usage
+                statistics consent (INTELLIJ_DATA_SHARING). Default: unset,
+                nothing is shared.
+            • region: "africa"|"americas"|"apac"|"china"|"europe"|
+                "middle_east"|"oceania" (INTELLIJ_REGION). Default: unset.
+            • disable_rocksdb_wal: boolean — disable the index's RocksDB
+                write-ahead log (VSCode `intellij.disableRocksDBWriteAheadLog`).
 
     Example: ~
 >lua
@@ -72,6 +109,12 @@ setup({opts})                                                          *kotlin.s
                 types_property = true,
             },
             folding = { enabled = true },
+            reload_workspace = { on_build_file_save = "always" },
+            projects = {
+                { type = "gradle", path = "backend" },
+                { type = "maven", path = "tools/pom.xml", java_home = "/path/to/jdk-17" },
+            },
+            dap = { console = "internalConsole" },
         }
 <
 
@@ -168,8 +211,16 @@ Available Commands for Kotlin Development:
 `:KotlinInlayHintsToggle`      Toggle inlay hints for current buffer
 `:KotlinHintsToggle`           Toggle HINT severity diagnostics
 `:KotlinNewFromTemplate`       Pick an IntelliJ file template for current buffer (v262.4739.0+)
+`:KotlinSupertypes`            Type hierarchy: supertypes of symbol under cursor (v263.4702.0+)
+`:KotlinSubtypes`              Type hierarchy: subtypes of symbol under cursor (v263.4702.0+)
 `:KotlinExportWorkspaceToJson` Export workspace structure to workspace.json
-`:KotlinCleanWorkspace`        Clear cached indices for current project
+`:KotlinReloadWorkspace`       Re-import the project without a restart (v263.4702.0+)
+`:KotlinRestart`               Restart the language server
+`:KotlinCleanWorkspace`        Delete this project's indexes and restart
+`:KotlinBuildLog`              Open the build-tool import / build output buffer
+`:KotlinShowLogs`              Open the server log and Neovim's LSP log
+`:KotlinRunMain [args]`        Run main() of current file (see |kotlin.nvim.debugging|)
+`:KotlinDebugMain [args]`      Debug main() of current file (see |kotlin.nvim.debugging|)
 `:KotlinDebug [port]`          Attach debugger to JVM (see |kotlin.nvim.debugging|)
 
 Code Actions and Quick Fixes: ~
@@ -387,53 +438,66 @@ Configuration: ~
 
 Workspace Management                                                *kotlin.nvim.workspace*
 
-kotlin.nvim provides project-specific workspace isolation to prevent LSP
-indexing conflicts between different Kotlin projects. Each project gets its
-own dedicated workspace directory for improved performance and reliability.
+kotlin.nvim gives every project its own `--system-path` directory so the
+server's state (indexes, logs, caches) never mixes between projects.
 
-Requirements: ~
-
-Workspace isolation with the `--system-path` parameter requires kotlin-lsp
-version 0.253.10629 or later.
-
-Features: ~
-
-• Automatic per-project workspace creation with platform-specific paths
-• Project name-based workspace isolation using directory structure
-• Clean workspace functionality to resolve LSP corruption issues
-• Cross-platform support (Windows, macOS, Linux)
-
-Commands: ~
-
-`:KotlinCleanWorkspace` - Clean the current project's workspace directory,
-                         stop all running Kotlin LSP instances, and prepare
-                         for a fresh LSP restart. This is useful when the
-                         LSP becomes unresponsive or corrupted.
-
-Workspace Structure: ~
-
-Each project workspace is stored in platform-specific locations:
+Directory: ~
 
 Unix/Linux/macOS:
 ```
-~/.cache/kotlin-lsp-workspaces/{project-name}/
+~/.cache/kotlin-lsp-workspaces/{project-name}-{hash}/
 ```
 
 Windows:
 ```
-%LOCALAPPDATA%\kotlin-lsp-workspaces\{project-name}\
+%LOCALAPPDATA%\kotlin-lsp-workspaces\{project-name}-{hash}\
 ```
 
-Where `{project-name}` is derived from the current working directory name.
-The workspace contains LSP indexing data, cached symbols, and project-specific
-metadata that improves completion and analysis performance.
+`{project-name}` is the resolved project root's directory name and `{hash}`
+the first 8 hex digits of the sha256 of its absolute path, so two projects
+with the same name do not share state. The server log is at
+`<system-path>/system/log/intellij-server.log` (`:KotlinShowLogs`).
 
-Note: ~
+On kotlin-lsp v263.4702.0+ the index lives inside that directory and the
+server reports its exact location in `capabilities.experimental.indexDir`
+(shown by `:checkhealth kotlin`).
 
-Workspace isolation is automatic and requires no additional configuration.
-The LSP will create and manage workspace directories as needed when opening
-Kotlin files in different projects. The plugin automatically detects the
-operating system and uses the appropriate directory conventions.
+Commands: ~
+
+`:KotlinReloadWorkspace`  Ask the server to re-import the project
+                         (`intellij/reloadWorkspace`, v263.4702.0+). The
+                         initialization options — `build_tool`, `projects`,
+                         `jdk_for_symbol_resolution` — are sent again, so
+                         changing them in `.kotlin-lsp.lua` takes effect
+                         without a restart. The process and its indexes stay.
+
+`:KotlinRestart`          Stop and start the server for all Kotlin buffers.
+
+`:KotlinCleanWorkspace`   Stop the server, delete the project's system-path
+                         directory and the index directory the server
+                         reported, then start again. Nothing outside this
+                         project is touched.
+
+`:KotlinBuildLog`         Output of Gradle/Maven imports (`intellij/importLog`)
+                         and of builds run before a launch.
+
+Auto reload: ~
+
+With `reload_workspace.on_build_file_save` (default `"ask"`) saving
+`build.gradle(.kts)`, `settings.gradle(.kts)` or `pom.xml` offers to
+re-import the project; `"always"` does it silently, `"never"` disables it.
+
+Import status: ~
+
+The server reports folders whose import cannot start
+(`intellij/workspaceImportStatus`). A folder holding several build systems
+is reported as a warning: set `build_tool` and run `:KotlinReloadWorkspace`.
+
+Build expiry: ~
+
+kotlin-lsp builds embed a time-limited licence. When it runs out the launcher
+exits with code 7 and the server never starts; kotlin.nvim reports this and
+`:checkhealth kotlin` shows the licence status and date. Update kotlin-lsp.
 
 ==========================================================================================
 
@@ -481,24 +545,126 @@ file, so it works regardless of your current working directory.
 
 ==========================================================================================
 
+IntelliJ Extensions                                                *kotlin.nvim.intellij*
+
+kotlin-lsp v263.4702.0+ exposes most IntelliJ Kotlin intentions as code
+actions, but only to clients that declare `intellijExtensions = true` in the
+initialization options, because some of them need the editor:
+
+`intellij/chooseAction`      A "choose one" menu (e.g. which expression to
+                             extract). Shown with |vim.ui.select()|; the pick
+                             is sent back through `chooseModCommandAction`.
+`intellij/copyToClipboard`   Text copied to the `+` and `"` registers.
+`intellij/runEditorCommand`  `editor.action.rename` → |vim.lsp.buf.rename()|,
+                             `editor.action.triggerSuggest` → completion,
+                             `editor.action.triggerParameterHints` →
+                             |vim.lsp.buf.signature_help()|.
+`intellij/importLog`         Build-import output → `:KotlinBuildLog`.
+`intellij/workspaceImportStatus`
+                             Folders whose import is blocked → notification.
+
+kotlin.nvim always sends the flag and installs these handlers. The server
+also emits `intellij.jvm.runMain` code lenses (see |kotlin.nvim.debugging|).
+
+Hover markdown from the server may contain `command:` links that only VS Code
+can follow; kotlin.nvim strips the link and keeps its label.
+
+Library sources: ~
+
+Go-to-definition into a dependency or the JDK yields `jar:` / `jrt:`
+locations. The buffer is filled through the server's `decompile` command,
+made read-only (`buftype=nowrite`) and attached to the kotlin_lsp client, so
+hover, navigation and semantic highlighting work inside library sources.
+Buffers open before a server restart are re-attached.
+
+Semantic tokens: ~
+
+The server never asks for a semantic-token refresh after indexing, so buffers
+opened during indexing kept stale highlighting; kotlin.nvim refreshes them when
+the "Indexing" progress ends.
+
+Live templates: ~
+
+Completion items for `main`, `sout`, `fori`, … (v263.4702.0+) use the same
+server-driven apply command as ordinary items, so they work with every
+completion engine.
+
+==========================================================================================
+
 Debugging                                                        *kotlin.nvim.debugging*
 
-kotlin.nvim integrates with nvim-dap to provide debugging support through
-kotlin-lsp's built-in debug adapter. When you start a debug session, the
-plugin sends a `start_debug_server` command to kotlin-lsp, which spins up
-a DAP server and returns the port to connect to.
+kotlin.nvim integrates with nvim-dap and kotlin-lsp's built-in debug
+adapter. When a session starts, the plugin sends `start_debug_server` to
+kotlin-lsp, which spins up a DAP server and returns the port to connect to.
 
 Requirements: ~
 - nvim-dap (https://github.com/mfussenegger/nvim-dap) must be installed
 - kotlin-lsp must be running (open a Kotlin file first)
+- Launching (as opposed to attaching) needs kotlin-lsp v263.4702.0+
 
 Commands: ~
 
-`:KotlinDebug [port]`  Attach the debugger to a running Kotlin/JVM process.
-                      Optionally specify the JDWP port (default: 5005).
-                      If no port is given, you will be prompted.
+`:KotlinRunMain [args]`    Run the `main` function of the current buffer.
+                          Extra words are passed as program arguments.
+`:KotlinDebugMain [args]`  Same, under the debugger.
+`:KotlinDebug [port]`      Attach the debugger to a running Kotlin/JVM
+                          process. Optionally specify the JDWP port
+                          (default: 5005). If no port is given, you will be
+                          prompted.
 
-Usage: ~
+Run/Debug code lenses: ~
+
+Every `main` function gets "Run" and "Debug" lenses (|vim.lsp.codelens|).
+Trigger the one on the cursor line with `vim.lsp.codelens.run()`. Disable
+with `code_lens = { enabled = false }`.
+
+How a launch is resolved: ~
+
+The server decides, like the VS Code extension:
+- A Gradle module is launched through Gradle
+  (`intellij.java.resolveBuildToolLaunch`); Gradle compiles and runs.
+- Otherwise the server returns the runtime paths
+  (`intellij.java.resolveLaunch`: java executable, classpath, module path,
+  working directory) and a build command (`intellij.java.resolveBuildCommand`).
+  kotlin.nvim runs the build first (output in `:KotlinBuildLog`) and starts
+  the program only if it succeeds; `dap.build_before_run = false` skips it.
+
+Program output goes to a terminal split (`dap.console = "integratedTerminal"`,
+DAP `runInTerminal`) or to the nvim-dap REPL (`"internalConsole"`).
+
+nvim-dap configurations and launch.json: ~
+
+The resolution runs in the adapter's `enrich_config` hook, so any launch
+configuration of type `kotlin` only needs `mainClass`. `dap.continue()`
+offers "Launch main class", "Launch main class (plain JVM)" and "Attach to
+JVM" by default (`dap.configurations = false` to opt out). A
+`.vscode/launch.json` written for the VS Code extension works unchanged: its
+`intellij_jvm`, `intellij_gradle` and `intellij_debugger` types map to the
+same adapter. Recognized fields: mainClass, file, args, vmArgs, env, cwd,
+console, launcher ("auto"|"gradle"|"jvm"), build (boolean), classPaths,
+modulePaths, moduleName, javaExec, projectPath, sourceSet, gradleArgs.
+>lua
+    table.insert(require("dap").configurations.kotlin, {
+        type = "kotlin", request = "launch", name = "Run server",
+        mainClass = "com.example.ServerKt",
+        launcher = "gradle",
+        args = { "--port", "8080" },
+    })
+<
+
+Programmatic launch: ~
+>lua
+    require("kotlin.dap").run_main({
+        mainClass = "com.example.MainKt",
+        noDebug = true,        -- false = debug
+        launcher = "jvm",      -- "gradle" | "jvm" | nil (server decides)
+        args = { "--verbose" },
+        vmArgs = { "-Xmx1g" },
+        env = { APP_ENV = "dev" },
+    })
+<
+
+Attach usage: ~
 
 1. Start your Kotlin application with JDWP debugging enabled:
 
@@ -528,26 +694,31 @@ Usage: ~
 
 Configuration: ~
 
-The plugin registers a `kotlin` DAP adapter automatically. It is only set
-if not already configured by the user, so you can override it:
+The plugin registers a `kotlin` DAP adapter automatically (adapter id
+`intellij_jvm`). It is only set if not already configured by the user, so
+you can override it:
 >lua
     local dap = require("dap")
 
     -- Custom adapter (optional, plugin registers one automatically)
-    dap.adapters.kotlin = function(cb)
+    dap.adapters.kotlin = function(cb, config)
         -- your custom adapter logic
     end
 <
 
-You can also call the start function programmatically:
+You can also call the attach function programmatically:
 >lua
     require("kotlin.dap").start({ port = 5005 })
 <
 
 Key Mapping Example: ~
 >lua
-    vim.keymap.set('n', '<leader>kd', ':KotlinDebug<CR>',
-        { desc = 'Debug Kotlin program' })
+    vim.keymap.set('n', '<leader>kr', ':KotlinRunMain<CR>',
+        { desc = 'Run Kotlin main' })
+    vim.keymap.set('n', '<leader>kd', ':KotlinDebugMain<CR>',
+        { desc = 'Debug Kotlin main' })
+    vim.keymap.set('n', '<leader>ka', ':KotlinDebug<CR>',
+        { desc = 'Attach Kotlin debugger' })
     vim.keymap.set('n', '<leader>db', function()
         require("dap").toggle_breakpoint()
     end, { desc = 'Toggle breakpoint' })

@@ -1,73 +1,97 @@
----@mod Kotlin LSP extensions for Neovim and kotlin-ls by JetBrains
+---@mod kotlin.decompiler Library and JDK sources as LSP-served buffers
+---
+--- Go-to-definition into a dependency or the JDK returns `jar:///...!/...` and
+--- `jrt:///...!/...` locations. Neovim keeps such names verbatim and
+--- |vim.uri_from_bufnr()| returns them unchanged, so a BufReadCmd on these
+--- schemes fills the buffer through the server's `decompile` command (attached
+--- sources when available, decompiled bytecode otherwise) and attaches the
+--- kotlin_lsp client to it, like the VS Code client's document selector does.
+--- Hover, navigation and semantic highlighting then work inside library code.
 
 local api = vim.api
-local lsp = require("kotlin.lsp")
-local kotlin = require("kotlin")
 
 local M = {}
 
 M.supported_protocols = { "jar", "jrt" }
 
---- Open special URIs like `jar://` or `jrt://` and decompile content
---- Uses the Kotlin language server to decompile and show the contents
----
----@param fname string
+--- Whether a buffer name / URI denotes a library source document.
+---@param name string?
+---@return boolean
+function M.is_virtual(name)
+  return type(name) == "string" and (vim.startswith(name, "jar:") or vim.startswith(name, "jrt:"))
+end
+
+--- Attach `client` to a library source buffer (idempotent).
+---@param bufnr integer
+---@param client vim.lsp.Client
+function M.attach(bufnr, client)
+  if not vim.lsp.buf_is_attached(bufnr, client.id) then
+    pcall(vim.lsp.buf_attach_client, bufnr, client.id)
+  end
+end
+
+--- Attach the client to every library source buffer already open (after a restart).
+---@param client vim.lsp.Client
+function M.attach_open_buffers(client)
+  for _, bufnr in ipairs(api.nvim_list_bufs()) do
+    if api.nvim_buf_is_loaded(bufnr) and M.is_virtual(api.nvim_buf_get_name(bufnr)) then
+      M.attach(bufnr, client)
+    end
+  end
+end
+
+--- BufReadCmd entry point for `jar://*` / `jrt://*` buffers.
+---@param fname string buffer name (from <amatch>)
 function M.open_classfile(fname)
-  local uri = fname
-  -- Make sure the URI is properly formatted
-  if not (vim.startswith(uri, "jar://") or vim.startswith(uri, "jrt://")) then
-    uri = vim.uri_from_fname(fname)
-    if not vim.startswith(uri, "file://") then
-      return
+  local bufnr = vim.fn.bufnr(fname)
+  if bufnr == -1 then
+    bufnr = api.nvim_get_current_buf()
+  end
+  local uri = api.nvim_buf_get_name(bufnr)
+  local client = vim.lsp.get_clients({ name = "kotlin_lsp" })[1]
+
+  local result, err
+  if client then
+    local timeout = require("kotlin").settings.uri_timeout_ms
+    local resp = client:request_sync("workspace/executeCommand", { command = "decompile", arguments = { uri } }, timeout, 0)
+    if not resp then
+      err = "timed out after " .. timeout .. "ms"
+    elseif resp.err then
+      err = vim.inspect(resp.err)
+    elseif type(resp.result) == "table" and type(resp.result.code) == "string" then
+      result = resp.result
+    else
+      err = "empty response"
     end
+  else
+    err = "Kotlin LSP not running"
+  end
+  if not result then
+    vim.notify("kotlin.nvim: failed to decompile " .. uri .. ": " .. err, vim.log.levels.WARN)
   end
 
-  local clients = lsp.get_clients({ name = "kotlin_lsp" })
-  local client = clients[1]
+  local code = result and result.code or ("// Failed to load source: " .. tostring(err))
+  vim.bo[bufnr].modifiable = true
+  api.nvim_buf_set_lines(bufnr, 0, -1, false, vim.split((code:gsub("\r\n", "\n")), "\n", { plain = true }))
+  vim.bo[bufnr].modifiable = false
+  vim.bo[bufnr].modified = false
+  vim.bo[bufnr].readonly = true
+  vim.bo[bufnr].swapfile = false
+  vim.bo[bufnr].buflisted = true
+  -- Not a file on disk: keeps Neovim's own LSP auto-start away (we attach
+  -- below) and refuses :write.
+  vim.bo[bufnr].buftype = "nowrite"
 
-  assert(client, "Must have a `kotlin-ls` client to load class file or jdt uri")
-
-  local buf = api.nvim_get_current_buf()
-  vim.bo[buf].modifiable = true
-  vim.bo[buf].swapfile = false
-  vim.bo[buf].buftype = "nofile"
-  vim.bo[buf].filetype = "java"
-
-  local content
-  local function handler(err, result)
-    assert(not err, vim.inspect(err))
-    content = result
-
-    -- Extract code from the result object
-    local code = result.code
-
-    -- Process the code
-    local normalized = string.gsub(code, "\r\n", "\n")
-    local source_lines = vim.split(normalized, "\n", { plain = true })
-
-    -- Update the buffer with the decompiled code
-    api.nvim_buf_set_lines(buf, 0, -1, false, source_lines)
-
-    -- Set the filetype based on the language field
-    if result.language then
-      vim.bo[buf].filetype = result.language:lower()
-    end
-
-    -- Make the buffer read-only
-    vim.bo[buf].modifiable = false
+  local lang = result and type(result.language) == "string" and result.language:lower() or nil
+  if not lang or lang == "" then
+    lang = uri:match("%.kt$") and "kotlin" or "java"
   end
+  vim.bo[bufnr].filetype = lang
+  pcall(vim.treesitter.start, bufnr, lang)
 
-  local command = {
-    command = "decompile",
-    arguments = { uri },
-  }
-
-  lsp.execute_command(command, handler)
-  -- Need to block. Otherwise logic could run that sets the cursor to a position
-  -- that's still missing.
-  vim.wait(kotlin.settings.uri_timeout_ms, function()
-    return content ~= nil
-  end)
+  if client and result then
+    M.attach(bufnr, client)
+  end
 end
 
 return M

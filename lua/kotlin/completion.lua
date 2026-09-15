@@ -106,8 +106,8 @@ local function patch_resolve(result)
   end
 end
 
---- Wrap a client's `request` so completion and resolve responses are normalized
---- before any frontend (builtin completion, nvim-cmp, blink.cmp) sees them.
+--- Wrap a client's `request` so completion, resolve and hover responses are
+--- normalized before any frontend (builtin completion, nvim-cmp, blink.cmp) sees them.
 --- Frontends issue these requests with an inline callback, bypassing the
 --- configured `handlers` table, so the client method is the only universal hook.
 --- Idempotent.
@@ -120,14 +120,24 @@ function M.attach(client)
 
   local orig_request = client.request
   client.request = function(self, method, params, handler, bufnr)
-    if handler and (method == "textDocument/completion" or method == "completionItem/resolve") then
+    if
+      handler
+      and (
+        method == "textDocument/completion"
+        or method == "completionItem/resolve"
+        or method == "textDocument/hover"
+      )
+    then
       local inner = handler
       handler = function(err, result, ctx, config)
         if not err and result then
           if method == "textDocument/completion" then
             patch_completion(result, params)
-          else
+          elseif method == "completionItem/resolve" then
             patch_resolve(result)
+          else
+            -- vim.lsp.buf.hover also bypasses the handlers table; see lua/kotlin/hover.lua.
+            require("kotlin.hover").patch(result)
           end
         end
         return inner(err, result, ctx, config)
