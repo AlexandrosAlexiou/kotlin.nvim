@@ -303,8 +303,7 @@ function M.toggle_inlay_hints()
 end
 
 -- Open the kotlin-lsp server log alongside Neovim's LSP log. The server log
--- path is derived from the running client's `--system-path=<dir>` argument, so
--- it matches this project's isolated workspace
+-- lives under this project's `--system-path` directory
 -- (<system-path>/system/log/intellij-server.log).
 function M.show_logs()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -315,20 +314,13 @@ function M.show_logs()
   end
 
   local client = clients[1]
-  if not client then
-    vim.notify("Kotlin LSP not running", vim.log.levels.WARN)
-    return
-  end
-
   local system_path
-  for _, arg in ipairs(client.config.cmd or {}) do
-    if type(arg) == "string" then
-      local path = arg:match("^%-%-system%-path=(.+)$")
-      if path then
-        system_path = path
-        break
-      end
-    end
+  if client then
+    system_path = require("kotlin.workspace").system_path_for(client)
+  else
+    -- Server not running (e.g. it crashed): derive the path from the buffer's root.
+    local kotlin = require("kotlin")
+    system_path = kotlin.workspace_dir_for_root(kotlin.resolve_root_for_buffer(bufnr))
   end
 
   if system_path then
@@ -339,11 +331,37 @@ function M.show_logs()
       vim.notify("Kotlin LSP server log not found yet: " .. server_log, vim.log.levels.INFO)
     end
   else
-    vim.notify("Could not determine server log path (no --system-path in client cmd)", vim.log.levels.WARN)
+    vim.notify("Could not determine the kotlin-lsp system path for this project", vim.log.levels.WARN)
   end
 
   -- Neovim's LSP RPC log (shared across clients).
   vim.cmd("vsplit | edit " .. vim.fn.fnameescape(vim.lsp.get_log_path()) .. " | normal! G")
+end
+
+-- Type hierarchy (kotlin-lsp v263.4702.0+ advertises typeHierarchyProvider).
+---@param kind "supertypes"|"subtypes"
+local function type_hierarchy(kind)
+  local bufnr = vim.api.nvim_get_current_buf()
+  local clients = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })
+
+  if #clients == 0 then
+    vim.notify("Kotlin LSP not attached to buffer", vim.log.levels.ERROR)
+    return
+  end
+  if not clients[1].server_capabilities.typeHierarchyProvider then
+    vim.notify("kotlin-lsp does not advertise type hierarchy (needs v263.4702.0+)", vim.log.levels.WARN)
+    return
+  end
+
+  vim.lsp.buf.typehierarchy(kind)
+end
+
+function M.supertypes()
+  type_hierarchy("supertypes")
+end
+
+function M.subtypes()
+  type_hierarchy("subtypes")
 end
 
 -- Register commands
@@ -436,6 +454,36 @@ function M.setup()
     M.show_logs()
   end, {
     desc = "Open the kotlin-lsp server log and Neovim's LSP log",
+  })
+
+  vim.api.nvim_create_user_command("KotlinSupertypes", function()
+    M.supertypes()
+  end, {
+    desc = "Show supertypes of the symbol under cursor (type hierarchy)",
+  })
+
+  vim.api.nvim_create_user_command("KotlinSubtypes", function()
+    M.subtypes()
+  end, {
+    desc = "Show subtypes of the symbol under cursor (type hierarchy)",
+  })
+
+  vim.api.nvim_create_user_command("KotlinReloadWorkspace", function()
+    require("kotlin.workspace").reload()
+  end, {
+    desc = "Re-import the project (intellij/reloadWorkspace) without restarting the server",
+  })
+
+  vim.api.nvim_create_user_command("KotlinRestart", function()
+    require("kotlin.workspace").restart()
+  end, {
+    desc = "Restart the Kotlin language server",
+  })
+
+  vim.api.nvim_create_user_command("KotlinBuildLog", function()
+    require("kotlin.intellij").open_build_log()
+  end, {
+    desc = "Open the build-tool import / build output log",
   })
 end
 

@@ -39,7 +39,10 @@
 
 ## 🧩 Extensions
 
-- [x] Decompile and open class file contents using kotlin-lsp `decompile` command
+- [x] Library and JDK sources (`jar:` / `jrt:` locations from go-to-definition) open as read-only buffers served by the LSP: hover, navigation and semantic highlighting work inside them
+- [x] Java buffers in a project whose server is running are attached too, like the VS Code client, so unsaved Java edits reach Kotlin analysis at once (`java_files = false` to opt out); a Java file alone never starts the server
+- [x] Semantic highlighting is refreshed once indexing finishes
+- [x] Live-template completions (`main`, `sout`, `fori`, …) work through the same server-driven insertion as ordinary items (kotlin-lsp v263.4702.0+)
 - [x] Export workspace to JSON using kotlin-lsp `exportWorkspace` command
 - [x] Organize imports with `KotlinOrganizeImports` command
 - [x] Format code with `KotlinFormat` command (uses IntelliJ IDEA formatting)
@@ -55,15 +58,20 @@
 - [x] IntelliJ-style file templates (Class, Interface, Data Class, …) via `KotlinNewFromTemplate` and on file creation (kotlin-lsp v262.4739.0+)
 - [x] Configurable build-tool importer (`gradle` / `maven`) via the `build_tool` option (kotlin-lsp v262.4739.0+)
 - [x] Maven project import support (kotlin-lsp v262+)
+- [x] Multi-project import via the `projects` option (monorepos, several independent projects in one workspace) (kotlin-lsp v263.4702.0+)
+- [x] IntelliJ intentions and quick fixes that need editor cooperation — "choose one" menus, copy to clipboard, follow-up rename — through the `intellij/*` protocol extensions (kotlin-lsp v263.4702.0+)
+- [x] Run and debug `main` functions from code lenses, `:KotlinRunMain` / `:KotlinDebugMain`, nvim-dap configurations or a VS Code `.vscode/launch.json`, through Gradle or a plain JVM launch (kotlin-lsp v263.4702.0+, requires nvim-dap)
+- [x] Attach the debugger to a running JVM with `:KotlinDebug`
+- [x] `:KotlinReloadWorkspace` re-imports the project without a restart, optionally whenever a build file is saved; `:KotlinRestart` restarts the server (kotlin-lsp v263.4702.0+)
+- [x] Build-import output in a `:KotlinBuildLog` buffer, with notifications when an import starts, fails, or is blocked by an ambiguous build system
+- [x] Type hierarchy via `KotlinSupertypes` / `KotlinSubtypes` (kotlin-lsp v263.4702.0+)
+- [x] Move a Kotlin file with imports and references updated: the server implements `workspace/willRenameFiles`, so renaming/moving in [oil.nvim][11] (`lsp_file_methods`) fixes up the code
 - [x] Automatic per-project workspace isolation to prevent LSP conflicts and improve performance
-  - Use `KotlinCleanWorkspace` command to clear cached indices for the current project
+  - Use `KotlinCleanWorkspace` command to delete exactly the index directory the server reports for the current project and restart
 - [x] Per-project LSP configuration via `.kotlin-lsp.lua` file
 - [x] Per-project LSP disabling via marker file
   - Create a `.disable-kotlin-lsp` file in the project root to prevent the Kotlin LSP from starting (detected automatically by searching upward from the opened file)
-- [x] DAP debugging support via nvim-dap (uses kotlin-lsp's built-in debug adapter)
-
-> [!warning]
-> DAP support is not yet finalized in the plugin. There is a known issue with the kotlin-lsp debug adapter. See [Kotlin/kotlin-lsp#198](https://github.com/Kotlin/kotlin-lsp/issues/198) for details.
+- [x] Warns when the kotlin-lsp build has expired: builds carry a time-limited licence and the launcher then exits with code 7. `:checkhealth kotlin` shows the expiry date.
 
 > [!note]
 > **Version Requirements:**
@@ -75,6 +83,7 @@
 > - "Go to Type Definition" and "Go to Implementation" require kotlin-lsp **v262+**.
 > - Maven project import is supported starting from kotlin-lsp **v262+**.
 > - Call hierarchy, LSP folding, file templates and the `build_tool` option require kotlin-lsp **v262.4739.0+**.
+> - Intentions with menus/clipboard/rename, run/debug lenses and launching, `:KotlinReloadWorkspace`, the `projects` option and type hierarchy require kotlin-lsp **v263.4702.0+**.
 > - No separate JDK is required to run the server — `bin/intellij-server` uses its own bundled JBR.
 
 ## 🚚 Migrating to v2
@@ -187,6 +196,51 @@ Install the plugin with your package manager:
             --   ""    = none (single-file / no build system)
             -- build_tool = "gradle",
 
+            -- Optional: import several projects from one workspace (kotlin-lsp v263.4702.0+).
+            -- Mirrors the VSCode `intellij.projects` setting. `path` is a build file or
+            -- project directory, absolute or relative to the workspace root.
+            -- projects = {
+            --     { type = "gradle", path = "backend" },
+            --     { type = "maven", path = "tools/pom.xml", java_home = "/path/to/jdk-17",
+            --       env = { MAVEN_OPTS = "-Xmx1g" }, system_properties = { ["skip.tests"] = "true" } },
+            -- },
+
+            -- Optional: re-import when a build file (build.gradle(.kts), settings.gradle(.kts),
+            -- pom.xml) is saved: "ask" (default), "always" or "never".
+            reload_workspace = { on_build_file_save = "ask" },
+
+            -- Optional: run/debug code lenses above `main` functions (kotlin-lsp v263.4702.0+)
+            code_lens = {
+                enabled = true,
+                -- The server titles lenses with VS Code codicons ("$(play) Run"); these are
+                -- shown instead (Nerd Font glyphs by default). `icons = false` shows text only.
+                -- icons = { play = "", debug = "" },
+                align = true, -- draw the lens at the line's indent instead of at `main`
+            },
+
+            -- Optional: launching programs (requires nvim-dap)
+            dap = {
+                console = "integratedTerminal", -- or "internalConsole" (output in the dap REPL)
+                build_before_run = true,        -- plain JVM launches: run the server's build command first
+                configurations = true,          -- add default entries to dap.configurations.kotlin/java
+            },
+
+            -- Optional: attach kotlin_lsp to Java buffers of a project whose server is already
+            -- running (the VS Code client does this so unsaved Java edits reach Kotlin analysis
+            -- immediately). The Kotlin server offers no Java features itself, and a Java file
+            -- alone never starts it. Set false if you want Java buffers left to jdtls only.
+            java_files = true,
+
+            -- Optional: JetBrains data sharing / region, as asked by the VS Code extension on first
+            -- start. Unset = share nothing. data_sharing: "none" | "anonymous" | "full";
+            -- region: "africa" | "americas" | "apac" | "china" | "europe" | "middle_east" | "oceania"
+            -- data_sharing = "none",
+            -- region = "europe",
+
+            -- Optional: disable the RocksDB write-ahead log of the index (VSCode
+            -- `intellij.disableRocksDBWriteAheadLog`)
+            -- disable_rocksdb_wal = false,
+
             -- Optional: file templates for new Kotlin files (requires kotlin-lsp v262.4739.0+)
             -- When you create a new .kt file the plugin asks the server to interpolate the
             -- chosen template. Pass a table of name → Velocity template to override the
@@ -233,6 +287,7 @@ return {
 1. **Global config** in your Neovim setup (applies to all projects)
 2. **Project config** in `.kotlin-lsp.lua` (overrides global for that project)
 3. Project settings are merged with global settings, with project taking precedence
+4. After editing `.kotlin-lsp.lua`, run `:KotlinRestart`. Options that only affect the import (`build_tool`, `projects`, `jdk_for_symbol_resolution`) are picked up by `:KotlinReloadWorkspace` too, which keeps the server and its indexes.
 
 ### Common Use Cases
 
@@ -478,9 +533,15 @@ kotlin.nvim provides several commands for working with Kotlin code:
 | `:KotlinInlayHintsToggle` | Toggle inlay hints on/off for the current buffer |
 | `:KotlinHintsToggle` | Toggle HINT severity diagnostics (if sent by the server) |
 | `:KotlinNewFromTemplate` | Pick an IntelliJ-style file template and apply it to the current buffer (v262.4739.0+) |
+| `:KotlinSupertypes` / `:KotlinSubtypes` | Type hierarchy of the symbol under cursor (v263.4702.0+) |
 | `:KotlinExportWorkspaceToJson` | Export workspace structure to `workspace.json` |
-| `:KotlinCleanWorkspace` | Clear cached indices and JetBrains analyzer cache for the current project |
+| `:KotlinReloadWorkspace` | Re-import the project (resends the initialization options) without restarting the server (v263.4702.0+) |
+| `:KotlinRestart` | Restart the Kotlin language server for all Kotlin buffers |
+| `:KotlinCleanWorkspace` | Stop the server, delete this project's `--system-path` directory and the index directory the server reported, and restart |
+| `:KotlinBuildLog` | Open the build-tool import / build output buffer |
 | `:KotlinShowLogs` | Open the kotlin-lsp server log (for the current project) and Neovim's LSP log |
+| `:KotlinRunMain [args]` | Run the `main` function in the current buffer (through Gradle when possible; requires nvim-dap, v263.4702.0+) |
+| `:KotlinDebugMain [args]` | Debug the `main` function in the current buffer (requires nvim-dap, v263.4702.0+) |
 | `:KotlinDebug [port]` | Attach debugger to a Kotlin/JVM process (JDWP port, default 5005; requires nvim-dap) |
 
 > [!note]
@@ -525,11 +586,54 @@ vim.keymap.set('n', '<leader>kd', ':KotlinDebug<CR>', { desc = 'Debug Kotlin pro
 
 ### Debugging Support
 
-kotlin.nvim integrates with [nvim-dap](https://github.com/mfussenegger/nvim-dap) to provide debugging support through kotlin-lsp's built-in debug adapter. When you start a debug session, the plugin sends a `start_debug_server` command to kotlin-lsp, which spins up a DAP server, then attaches to your running JVM process via JDWP.
+kotlin.nvim integrates with [nvim-dap](https://github.com/mfussenegger/nvim-dap) and kotlin-lsp's built-in debug adapter. When a session starts, the plugin sends `start_debug_server` to kotlin-lsp, which spins up a DAP server, and nvim-dap connects to it. The adapter is registered as `kotlin` (only if you have not configured one yourself).
 
-**Usage:**
+#### Run or debug a `main` function (kotlin-lsp v263.4702.0+)
 
-1. Start your Kotlin application with JDWP debugging enabled:
+Every `main` function gets two code lenses, **Run** and **Debug** (rendered by `vim.lsp.codelens`; trigger the one under the cursor with `vim.lsp.codelens.run()`). The same launches are available as commands:
+
+```vim
+:KotlinRunMain                " run main() of the current file
+:KotlinRunMain sync --force   " with program arguments
+:KotlinDebugMain              " debug it (breakpoints, stepping, variables via nvim-dap)
+```
+
+How the program runs is resolved by the server, exactly like the VS Code extension does it:
+
+- **Gradle module**: launched through Gradle (`intellij.java.resolveBuildToolLaunch`). Gradle compiles and runs; nothing is built separately.
+- **Anything else** (Maven, plain JPS): the server returns the runtime paths (`intellij.java.resolveLaunch`: `java` executable, classpath, module path, working directory) and a build command (`intellij.java.resolveBuildCommand`). kotlin.nvim runs the build first, streaming its output to `:KotlinBuildLog`, and starts the program only if it succeeds. Set `dap.build_before_run = false` to skip the build.
+
+Program output goes to a terminal split by default (`dap.console = "integratedTerminal"`, via DAP `runInTerminal`). Use `"internalConsole"` to stream it into the nvim-dap REPL instead.
+
+The resolution runs in the adapter's `enrich_config` hook, so it applies to **every** launch configuration of the `kotlin` type, not only to the lenses: `dap.continue()` offers "Launch main class", "Launch main class (plain JVM)" and "Attach to JVM" out of the box (disable with `dap.configurations = false`), you can add your own to `dap.configurations.kotlin`, and a `.vscode/launch.json` written for the VS Code extension works unchanged. Its `intellij_jvm`, `intellij_gradle` and `intellij_debugger` types are routed to the same adapter, and `file`, `classPaths`, `modulePaths`, `moduleName`, `javaExec`, `projectPath`, `sourceSet` and `gradleArgs` are honored the way the extension honors them. Only `mainClass` is required.
+
+```lua
+-- dap.configurations.kotlin entry
+{
+  type = "kotlin", request = "launch", name = "Run server",
+  mainClass = "com.example.ServerKt",
+  launcher = "gradle",              -- "auto" | "gradle" | "jvm" (default "jvm" here, "auto" for the lens)
+  args = { "--port", "8080" }, vmArgs = { "-Xmx1g" }, env = { APP_ENV = "dev" },
+  build = true,                     -- plain JVM launches: compile first (default dap.build_before_run)
+}
+```
+
+Programmatic use, including forcing a plain JVM launch for a Gradle module:
+
+```lua
+require("kotlin.dap").run_main({
+  mainClass = "com.example.MainKt",
+  noDebug = true,           -- false = debug
+  launcher = "jvm",         -- "gradle" | "jvm" | nil (server decides)
+  args = { "--verbose" },
+  vmArgs = { "-Xmx1g" },
+  env = { APP_ENV = "dev" },
+})
+```
+
+#### Attach to a running JVM
+
+1. Start your application with JDWP debugging enabled:
 ```sh
 # Gradle
 ./gradlew run --debug-jvm
@@ -548,16 +652,40 @@ Both default to JDWP port **5005**.
 :KotlinDebug 8000     " attach to a custom port
 ```
 
-The plugin registers a `kotlin` DAP adapter automatically. It is only set if not already configured by the user, so you can fully customize it in your nvim-dap setup.
-
 For breakpoint, stepping, REPL, and variable inspection workflows, see `:help dap.txt`. These are standard nvim-dap features and are not Kotlin-specific.
 
 > [!note]
 > nvim-dap is an optional dependency. If it is not installed, DAP features are silently skipped and the rest of the plugin works normally.
 
-### Shared Indices
+### Workspace reload, restart and build log
 
-Indices are now stored in a dedicated folder and properly shared between multiple projects and language server instances, improving performance and reducing disk usage.
+- `:KotlinReloadWorkspace` asks the server to re-import the project (`intellij/reloadWorkspace`, v263.4702.0+), resending the initialization options. The process and its indexes stay. With `reload_workspace.on_build_file_save` the plugin offers (`"ask"`, default) or performs (`"always"`) this whenever you save `build.gradle(.kts)`, `settings.gradle(.kts)` or `pom.xml`.
+- `:KotlinRestart` stops and starts the server for all Kotlin buffers.
+- `:KotlinBuildLog` shows the output of Gradle/Maven imports and of builds run before a launch. Import start, failure and success are also reported as notifications, and so is a folder whose import is blocked because it holds more than one build system (set `build_tool` and reload).
+
+### Library sources, Java files and semantic highlighting
+
+- **Library and JDK sources.** Go-to-definition into a dependency returns `jar:` or `jrt:` locations. kotlin.nvim fills the buffer through the server's `decompile` command (attached sources when the build tool downloaded them, decompiled bytecode otherwise), marks it read-only, and attaches the kotlin_lsp client to it, as the VS Code client's document selector does. Hover, further navigation and semantic highlighting therefore work inside `kotlin-stdlib-…-sources.jar!/…/Collections.kt` as well. Buffers open before a server restart are re-attached.
+- **Java files.** The "Kotlin by JetBrains" bundle ships only the `java-base.lsp` plugin, which lets Kotlin analysis read Java code and lets Kotlin navigate into Java. It provides no features *inside* Java documents: definition, references, symbols, semantic tokens and completion all return empty (only hover answers, in library sources). Java features come from the `java.lsp` plugin of the "Java and Kotlin by IntelliJ IDEA" server. kotlin.nvim attaches to Java buffers anyway, as the VS Code client does, so unsaved Java edits reach Kotlin analysis immediately, but only to a server that a Kotlin file already started for the same project root: opening a Java file alone never starts kotlin-lsp. `java_files = false` turns this off. If you run jdtls alongside, filter formatting by client name (`vim.lsp.buf.format({ name = "jdtls" })`), since both clients advertise it.
+- **Semantic tokens.** The server reports indexing through `$/progress` but never asks for a semantic-token refresh afterwards, so buffers opened during indexing kept degraded highlighting until an edit. kotlin.nvim refreshes them when the "Indexing" progress ends.
+- **Live templates.** Completion items for `main`, `sout`, `fori` and friends use the same `jetbrains.kotlin.completion.apply` command as ordinary items, so the completion fix above covers them: accepting `sout` yields `println()` with the caret between the parentheses.
+
+### IntelliJ intentions
+
+kotlin-lsp v263.4702.0 exposes most Kotlin intentions from the IntelliJ plugin as code actions. Some of them need the editor: a "choose one of these" menu, copying text to the clipboard, or starting a rename after the edit. kotlin.nvim declares itself a JetBrains-aware client (`intellijExtensions`) and handles the resulting `intellij/chooseAction` (shown with `vim.ui.select`), `intellij/copyToClipboard` (`+` register) and `intellij/runEditorCommand` (`editor.action.rename` → `vim.lsp.buf.rename`, `editor.action.triggerSuggest` → completion, `editor.action.triggerParameterHints` → signature help) notifications, so these actions appear in `:KotlinCodeActions` / `vim.lsp.buf.code_action()` and work.
+
+Hover text from the server may contain "Go to Super Method"-style links that only VS Code can follow; kotlin.nvim strips the link and keeps the label.
+
+### Build expiry
+
+kotlin-lsp builds embed a time-limited licence (for v263.4702.0 it runs out on 2026-10-08). When it lapses the launcher exits with code 7 and the server never starts. kotlin.nvim reports this with a clear message, and `:checkhealth kotlin` shows the licence status and date, so update kotlin-lsp before that (`:MasonInstall kotlin-lsp` or a newer GitHub release).
+
+### Per-project state and indices
+
+Each project gets its own `--system-path` directory, `~/.cache/kotlin-lsp-workspaces/<name>-<hash>` (`%LOCALAPPDATA%\kotlin-lsp-workspaces\<name>-<hash>` on Windows), keyed by the resolved project root so two projects with the same directory name do not collide. With kotlin-lsp v263.4702.0+ the server keeps its index inside that directory and reports the exact location (`capabilities.experimental.indexDir`); `:KotlinCleanWorkspace` deletes that directory and the reported index directory, and nothing else. Older plugin versions wiped the whole JetBrains analyzer cache, which also held the indexes of every other project.
+
+> [!note]
+> Upgrading from a version that named the directory `<name>` only: the old directories under `~/.cache/kotlin-lsp-workspaces/` are no longer used and can be deleted. The first start re-indexes.
 
 ## 📥 Language Server Installation
 

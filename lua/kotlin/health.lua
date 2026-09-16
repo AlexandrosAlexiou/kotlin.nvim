@@ -64,6 +64,13 @@ local function check_install()
     info("$KOTLIN_LSP_DIR: " .. env_dir)
   end
 
+  if os.getenv("IJ_LAUNCHER_DEBUG") then
+    warn(
+      "IJ_LAUNCHER_DEBUG is set: the launcher would write debug output to stdout, the LSP channel. "
+        .. "kotlin.nvim drops it via env(1) on Unix; unset it on Windows."
+    )
+  end
+
   local resolved
   if mason_exists then
     resolved = kotlin.resolve_kotlin_lsp_dir(mason_root, is_windows())
@@ -113,9 +120,41 @@ local function check_clients()
     return
   end
 
+  local workspace = require("kotlin.workspace")
   for _, c in ipairs(clients) do
     ok(("kotlin_lsp (id=%d) attached to %d buffer(s)"):format(c.id, vim.tbl_count(c.attached_buffers or {})))
-    info("  cmd: " .. vim.inspect(c.config.cmd))
+    info("  root: " .. tostring(c.root_dir))
+    info("  system path: " .. tostring(workspace.system_path_for(c)))
+    if c.server_info then
+      info(("  server: %s %s"):format(c.server_info.name or "?", c.server_info.version or "?"))
+    end
+    local experimental = c.server_capabilities and c.server_capabilities.experimental
+    if type(experimental) == "table" and experimental.indexDir then
+      info("  index dir: " .. experimental.indexDir)
+    end
+    info("  init options: " .. vim.inspect(c.config.init_options, { newline = " ", indent = "" }))
+    info("  filetypes: " .. table.concat(c.config.filetypes or {}, ", "))
+
+    -- kotlin-lsp builds embed a time-limited (EAP) licence; when it lapses the
+    -- launcher exits with code 7 and nothing starts. Show how long is left.
+    if type(experimental) == "table" and experimental.licensing then
+      local resp = c:request_sync("jetbrains/licensing/state/get", vim.NIL, 3000)
+      local lic = resp and resp.result and resp.result.activeLicense
+      if lic then
+        local line = ("  licence: %s (%s), valid through %s"):format(
+          tostring(lic.status),
+          tostring(lic.source),
+          tostring(lic.validThrough)
+        )
+        if lic.status ~= "Valid" then
+          err(line)
+        elseif type(lic.daysLeft) == "number" and lic.daysLeft <= 7 then
+          warn(line .. (" — %d day(s) left, update kotlin-lsp soon"):format(lic.daysLeft))
+        else
+          ok(line)
+        end
+      end
+    end
 
     local caps = c.server_capabilities or {}
     local function cap(name, key)
@@ -132,11 +171,22 @@ local function check_clients()
     cap("implementationProvider", "implementationProvider")
     cap("renameProvider", "renameProvider")
     cap("documentFormattingProvider", "documentFormattingProvider")
+    cap("codeLensProvider (run/debug lenses, v263.4702.0+)", "codeLensProvider")
+    cap("typeHierarchyProvider (v263.4702.0+)", "typeHierarchyProvider")
 
     local provider = caps.executeCommandProvider
     if type(provider) == "table" and provider.commands then
       info("  executeCommands: " .. table.concat(provider.commands, ", "))
-      local needed = { "exportWorkspace", "kotlin.organize.imports", "interpolateFileTemplate", "start_debug_server" }
+      local needed = {
+        "exportWorkspace",
+        "kotlin.organize.imports",
+        "interpolateFileTemplate",
+        "start_debug_server",
+        "chooseModCommandAction",
+        "intellij.java.resolveLaunch",
+        "intellij.java.resolveBuildToolLaunch",
+        "intellij.java.resolveBuildCommand",
+      }
       for _, name in ipairs(needed) do
         if vim.tbl_contains(provider.commands, name) then
           ok("  command available: " .. name)
