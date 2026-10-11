@@ -238,12 +238,19 @@ local REGION_VALUES =
 local function launch_env(opts)
   local env = {}
 
-  -- Pass additional JVM args via IJ_JAVA_OPTIONS environment variable
-  if opts.jvm_args and type(opts.jvm_args) == "table" and #opts.jvm_args > 0 then
-    local current = os.getenv("IJ_JAVA_OPTIONS")
-    local extra = table.concat(opts.jvm_args, " ")
-    env.IJ_JAVA_OPTIONS = current and current ~= "" and (current .. " " .. extra) or extra
+  -- JVM args for the server go through the IJ_JAVA_OPTIONS environment variable.
+  local jvm_args = vim.list_extend({}, type(opts.jvm_args) == "table" and opts.jvm_args or {})
+  -- kotlin-lsp 263.4702.0 never sends the DAP `stopped` event when the top
+  -- frame is a synthetic Kotlin inline frame: rendering it hits a headless NPE
+  -- in InlineStackFrame.getBackgroundColor and the pause is swallowed, so
+  -- stepping into any inline function looks like the program resumed. Inline
+  -- frames are off unless `dap.inline_stack_frames = true` asks for them.
+  if not (opts.dap and opts.dap.inline_stack_frames) then
+    table.insert(jvm_args, "-Ddebugger.kotlin.inline.stack.trace.enabled=false")
   end
+  local current = os.getenv("IJ_JAVA_OPTIONS")
+  local extra = table.concat(jvm_args, " ")
+  env.IJ_JAVA_OPTIONS = current and current ~= "" and (current .. " " .. extra) or extra
 
   -- Consent settings the VS Code extension asks for on first start. Unset means
   -- "none" / no region: the server shares nothing.
@@ -284,6 +291,12 @@ local function configured_project(entry, root)
   project["project-path"] = entry.project_path or entry["project-path"]
   project.env = entry.env
   project["system-properties"] = entry.system_properties or entry["system-properties"]
+  project.profiles = entry.profiles
+  project.downloadAdditionalArtifacts = entry.download_additional_artifacts
+  if project.downloadAdditionalArtifacts == nil then
+    project.downloadAdditionalArtifacts = entry.downloadAdditionalArtifacts
+  end
+  project.offline = entry.offline
   return project
 end
 
@@ -398,6 +411,9 @@ function M.setup_kotlin_lsp(opts)
   -- Declares a JetBrains-aware client: unlocks the `intellij/*` notifications
   -- that ModCommand intentions need (see lua/kotlin/intellij.lua).
   init_options.intellijExtensions = true
+  -- The server offers a fix without performing it and runs it only when the
+  -- client executes the fix's command (cheaper code action lists).
+  init_options.lazyIntentions = true
 
   -- Run/Debug lenses above `main` functions (see lua/kotlin/codelens.lua).
   if not (opts.code_lens and opts.code_lens.enabled == false) then
@@ -462,6 +478,20 @@ function M.setup_kotlin_lsp(opts)
   -- place it in the current buffer instead of switching windows/scrolling.
   handlers["window/showDocument"] = function(_, params, ctx)
     return require("kotlin.completion").show_document(params, ctx)
+  end
+
+  -- kotlin-lsp (v263.6379.0) stamps its edits with its own count of document
+  -- changes instead of the version the client sent, and Neovim's versions are
+  -- `changedtick`s, so after the first change in a buffer every refactoring
+  -- edit (Extract/Inline variable, intentions) looked stale and was silently
+  -- dropped. Clear the version so the edit applies to the current buffer.
+  handlers["workspace/applyEdit"] = function(err, params, ctx)
+    for _, change in ipairs(params and params.edit and params.edit.documentChanges or {}) do
+      if change.textDocument then
+        change.textDocument.version = vim.NIL
+      end
+    end
+    return vim.lsp.handlers["workspace/applyEdit"](err, params, ctx)
   end
 
   vim.lsp.config.kotlin_lsp = {
