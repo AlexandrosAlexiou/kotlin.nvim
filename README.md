@@ -1,4 +1,4 @@
-kotlin.nvim &mdash; JetBrains' Kotlin language server in Neovim
+kotlin.nvim &mdash; JetBrains' Kotlin LSP in Neovim
 ================================================================
 
 [<img alt="github" src="https://img.shields.io/badge/github-AlexandrosAlexiou/kotlin.nvim-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/AlexandrosAlexiou/kotlin.nvim)
