@@ -226,6 +226,7 @@ function M.enrich_config(config, on_config)
       modulePaths = non_empty(config.modulePaths),
       moduleName = config.moduleName,
       javaExec = config.javaExec,
+      vmArgs = non_empty(config.vmArgs),
     }
     if next(overrides) == nil then
       overrides = vim.empty_dict()
@@ -256,6 +257,12 @@ function M.enrich_config(config, on_config)
         end
         if paths.javaExec then
           config.javaExec = paths.javaExec
+        end
+        -- The config's own VM arguments plus what the project requires
+        -- (`--enable-preview` for a preview language level). Absent on older
+        -- servers, which keep the config's own.
+        if paths.vmArgs then
+          config.vmArgs = non_empty(paths.vmArgs)
         end
         finish()
       end

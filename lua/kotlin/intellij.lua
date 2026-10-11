@@ -62,8 +62,10 @@ function M.open_build_log()
 end
 
 -- `intellij/chooseAction`: a ModCommand offers several actions; show them and
--- run the pick through `chooseModCommandAction`. The chosen action may itself
--- yield another menu, which arrives as a follow-up notification.
+-- run the pick. v263.6379.0+ entries carry the command to execute; older
+-- servers send a session id and an index for `chooseModCommandAction`. The
+-- chosen action may itself yield another menu, which arrives as a follow-up
+-- notification.
 local function choose_action(params, ctx)
   local client = vim.lsp.get_client_by_id(ctx.client_id)
   if not client or type(params) ~= "table" or type(params.entries) ~= "table" then
@@ -79,17 +81,59 @@ local function choose_action(params, ctx)
       if not choice then
         return
       end
-      client:exec_cmd({
-        title = choice.name,
-        command = "chooseModCommandAction",
-        arguments = { params.sessionId, choice.index },
-      }, {}, function(err)
+      local command = choice.command
+        or { command = "chooseModCommandAction", arguments = { params.sessionId, choice.index } }
+      client:exec_cmd({ title = choice.name, command = command.command, arguments = command.arguments }, {}, function(err)
         if err then
           vim.notify("kotlin.nvim: action failed: " .. vim.inspect(err), vim.log.levels.ERROR)
         end
       end)
     end)
   end)
+end
+
+-- `intellij/showConflicts` (request, v263.6379.0+): a refactoring reports
+-- problems and asks whether to continue; the server holds its edits until the
+-- answer. Picking a conflict opens its code, then the menu comes back. Blocks
+-- the handler (not the editor) until the user decides; closing the menu cancels.
+local function show_conflicts(_, params, ctx)
+  local client = vim.lsp.get_client_by_id(ctx.client_id)
+  params = type(params) == "table" and params or {}
+  local items = {}
+  for _, conflict in ipairs(params.conflicts or {}) do
+    local loc = type(conflict.location) == "table" and conflict.location or nil
+    local where = loc and ("%s:%d"):format(vim.fn.fnamemodify(vim.uri_to_fname(loc.uri), ":t"), loc.range.start.line + 1)
+      or "-"
+    table.insert(items, { label = where .. "  " .. table.concat(conflict.messages or {}, " "), location = loc })
+  end
+  table.insert(items, { label = params.continueLabel or "Continue", decision = "continue" })
+  table.insert(items, { label = params.cancelLabel or "Cancel", decision = "cancel" })
+
+  local decision
+  local function ask()
+    vim.ui.select(items, {
+      prompt = params.title or "Conflicts",
+      format_item = function(item)
+        return item.label
+      end,
+    }, function(choice)
+      if not choice then
+        decision = "cancel"
+      elseif choice.decision then
+        decision = choice.decision
+      else
+        if choice.location then
+          vim.lsp.util.show_document(choice.location, client and client.offset_encoding or "utf-16", { focus = true })
+        end
+        ask()
+      end
+    end)
+  end
+  ask()
+  vim.wait(math.huge, function()
+    return decision ~= nil
+  end, 50)
+  return { decision = decision }
 end
 
 -- `intellij/copyToClipboard`: ModCopyToClipboard.
@@ -237,6 +281,7 @@ function M.handlers()
   end
   return {
     ["intellij/chooseAction"] = notification(choose_action),
+    ["intellij/showConflicts"] = show_conflicts,
     ["intellij/copyToClipboard"] = notification(copy_to_clipboard),
     ["intellij/runEditorCommand"] = notification(run_editor_command),
     ["intellij/importLog"] = notification(import_log),
