@@ -239,15 +239,7 @@ local function launch_env(opts)
   local env = {}
 
   -- JVM args for the server go through the IJ_JAVA_OPTIONS environment variable.
-  local jvm_args = vim.list_extend({}, type(opts.jvm_args) == "table" and opts.jvm_args or {})
-  -- kotlin-lsp 263.4702.0 never sends the DAP `stopped` event when the top
-  -- frame is a synthetic Kotlin inline frame: rendering it hits a headless NPE
-  -- in InlineStackFrame.getBackgroundColor and the pause is swallowed, so
-  -- stepping into any inline function looks like the program resumed. Inline
-  -- frames are off unless `dap.inline_stack_frames = true` asks for them.
-  if not (opts.dap and opts.dap.inline_stack_frames) then
-    table.insert(jvm_args, "-Ddebugger.kotlin.inline.stack.trace.enabled=false")
-  end
+  local jvm_args = type(opts.jvm_args) == "table" and opts.jvm_args or {}
   local current = os.getenv("IJ_JAVA_OPTIONS")
   local extra = table.concat(jvm_args, " ")
   env.IJ_JAVA_OPTIONS = current and current ~= "" and (current .. " " .. extra) or extra

@@ -79,13 +79,12 @@ setup({opts})                                                          *kotlin.s
                 to execute them.
             • dap: { console = "integratedTerminal"|"internalConsole"|
                 "externalTerminal", build_before_run = boolean,
-                configurations = boolean, inline_stack_frames = boolean }
+                configurations = boolean }
                 — where a launched program's output goes (default
                 integratedTerminal), whether plain JVM launches run the
                 server's build command first (default true), whether default
                 entries are added to dap.configurations.kotlin/java (default
-                true), and whether the server builds synthetic Kotlin inline
-                stack frames (default false, see |kotlin.nvim.debugging|).
+                true).
             • java_files: boolean — also attach to Java buffers of a project
                 whose server is already running, like the VS Code client, so
                 unsaved Java edits reach Kotlin analysis immediately. A Java
@@ -640,13 +639,6 @@ The server decides, like the VS Code extension:
 
 Program output goes to a terminal split (`dap.console = "integratedTerminal"`,
 DAP `runInTerminal`) or to the nvim-dap REPL (`"internalConsole"`).
-
-The server is started with `-Ddebugger.kotlin.inline.stack.trace.enabled=false`:
-kotlin-lsp v263.4702.0 drops the DAP `stopped` event whenever the current frame
-is a synthetic Kotlin inline frame (a headless NullPointerException in
-InlineStackFrame.getBackgroundColor), so stepping into any `inline` function
-left the JVM suspended while nvim-dap showed it running. Set
-`dap.inline_stack_frames = true` to get the synthetic frames back.
 
 nvim-dap configurations and launch.json: ~
 
