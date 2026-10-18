@@ -24,6 +24,7 @@ exits with code 7 and the server never starts. kotlin.nvim reports this, and
 |---|---|
 | v263.4702.0 | 2026-10-08 |
 | v263.6379.0 | 2026-10-30 |
+| v263.7084.0 | 2026-11-13 |
 
 Update kotlin-lsp before then: `:MasonInstall kotlin-lsp`, or a newer build from
 the [releases](https://github.com/Kotlin/kotlin-lsp/releases).

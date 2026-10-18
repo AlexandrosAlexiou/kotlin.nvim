@@ -117,18 +117,3 @@ attach:
 :KotlinDebug          " prompts for the port (default 5005)
 :KotlinDebug 8000     " attach to port 8000
 ```
-
-<br>
-
-## Inline functions
-
-kotlin.nvim starts the server with
-`-Ddebugger.kotlin.inline.stack.trace.enabled=false`. In kotlin-lsp
-v263.4702.0, pausing in a synthetic Kotlin inline frame hit a
-`NullPointerException` on the server and the pause was never reported, so
-stepping into any `inline` function (`let`, `map`, Spring's `runApplication`, …)
-left the JVM suspended while nvim-dap showed it running. With inline frames off,
-step-into lands in the inlined body as part of the caller's frame.
-
-Set `dap.inline_stack_frames = true` to get the synthetic frames back once the
-server is fixed.

@@ -61,7 +61,6 @@ require("kotlin").setup {
         console = "integratedTerminal", -- or "internalConsole" (dap REPL)
         build_before_run = true,        -- plain JVM launches compile first
         configurations = true,          -- default dap.configurations entries
-        inline_stack_frames = false,    -- see debugging.md
     },
 
     -- Also attach to Java buffers of a project whose server is already

@@ -109,6 +109,7 @@ server offers them:
 | v262.4739.0 | Minimum. Call hierarchy, LSP folding, file templates, the `build_tool` option, type definition / implementation, Maven import |
 | v263.4702.0 | Intentions that need the editor (menus, clipboard, follow-up rename), run/debug code lenses and launching, `:KotlinReloadWorkspace`, the `projects` option, type hierarchy, live-template completions |
 | v263.6379.0 | Extract / Inline local variable, conflict prompts for refactorings, Maven `profiles` / `offline` / `download_additional_artifacts`, `--enable-preview` added to launches automatically |
+| v263.7084.0 | Stepping inside scope functions (`let`, `also`, `with`, …), coroutine async stack traces in launched programs |
 
 <br>
 

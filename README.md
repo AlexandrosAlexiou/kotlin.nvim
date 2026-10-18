@@ -3,7 +3,7 @@ kotlin.nvim &mdash; JetBrains' Kotlin LSP in Neovim
 
 [<img alt="github" src="https://img.shields.io/badge/github-AlexandrosAlexiou/kotlin.nvim-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/AlexandrosAlexiou/kotlin.nvim)
 [<img alt="neovim" src="https://img.shields.io/badge/neovim-0.11+-57A143?style=for-the-badge&labelColor=555555&logo=neovim" height="20">](https://neovim.io/)
-[<img alt="kotlin-lsp" src="https://img.shields.io/badge/kotlin--lsp-v263.6379.0-7F52FF?style=for-the-badge&labelColor=555555&logo=kotlin" height="20">](https://github.com/Kotlin/kotlin-lsp/releases)
+[<img alt="kotlin-lsp" src="https://img.shields.io/badge/kotlin--lsp-v263.7084.0-7F52FF?style=for-the-badge&labelColor=555555&logo=kotlin" height="20">](https://github.com/Kotlin/kotlin-lsp/releases)
 [<img alt="license" src="https://img.shields.io/github/license/AlexandrosAlexiou/kotlin.nvim?style=for-the-badge" height="20">](LICENSE.txt)
 
 This plugin runs [kotlin-lsp], JetBrains' official Kotlin language server, in
@@ -34,7 +34,7 @@ from every other project.
 :MasonInstall kotlin-lsp
 ```
 
-*Requires Neovim 0.11+ and kotlin-lsp v262.4739.0+ (v263.6379.0 recommended)*<br>
+*Requires Neovim 0.11+ and kotlin-lsp v262.4739.0+ (v263.7084.0 recommended)*<br>
 *[Release notes](https://github.com/AlexandrosAlexiou/kotlin.nvim/releases)*
 
 <br>
