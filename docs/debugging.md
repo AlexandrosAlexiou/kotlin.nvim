@@ -12,16 +12,14 @@ stepping, the REPL and variable inspection are standard nvim-dap features, see
 `:help dap.txt`.
 
 - [Run or debug `main`](#run-or-debug-main)
-- [How the launch is resolved](#how-the-launch-is-resolved)
+- [Run or debug tests](#run-or-debug-tests)
+- [How a program is launched](#how-a-program-is-launched)
 - [Launch configurations and launch.json](#launch-configurations-and-launchjson)
 - [Attach to a running JVM](#attach-to-a-running-jvm)
-- [Inline functions](#inline-functions)
 
 <br>
 
 ## Run or debug `main`
-
-*Requires kotlin-lsp v263.4702.0+*
 
 Every `main` function gets **Run** and **Debug** code lenses. Trigger the one
 under the cursor with `vim.lsp.codelens.run()`. The same launches are
@@ -33,36 +31,50 @@ commands:
 :KotlinDebugMain              " debug it
 ```
 
-Program output goes to a terminal split (`dap.console = "integratedTerminal"`,
-through DAP `runInTerminal`). `"internalConsole"` streams it into the nvim-dap
-REPL instead.
+The server runs the program and streams its output, build included, to the
+nvim-dap REPL. kotlin.nvim opens the REPL when the first output arrives, unless
+a window (nvim-dap-ui, for example) already shows it.
+`dap.console = "internalConsole"` leaves opening it to you.
 
 <br>
 
-## How the launch is resolved
+## Run or debug tests
 
-The server decides, as it does for the VS Code extension:
+JUnit and TestNG test classes and methods get **Run Test** and **Debug Test**
+lenses, triggered with `vim.lsp.codelens.run()` like the ones above `main`.
+The server builds the module and starts the test runner; results are printed in
+the REPL, one line per test, with the message and stack trace of each failure:
 
-- **Gradle module.** The program is launched through Gradle
-  (`intellij.java.resolveBuildToolLaunch`), which compiles and runs it.
-- **Anything else** (Maven, plain JPS). The server returns the `java`
-  executable, classpath, module path and working directory
-  (`intellij.java.resolveLaunch`) and a build command
-  (`intellij.java.resolveBuildCommand`). kotlin.nvim runs the build first,
-  streaming its output to `:KotlinBuildLog`, and starts the program only if the
-  build succeeds. `dap.build_before_run = false` skips the build.
+```
+✓ greetsByName() (18 ms)
+✗ failsOnPurpose()
+org.opentest4j.AssertionFailedError: expected: <nope> but was: <Hello, x>
+	at demo.GreetTest.failsOnPurpose(GreetTest.kt:14)
+```
 
-From v263.6379.0 the server also adds the VM arguments the project needs, such
-as `--enable-preview` for a module compiled at a preview language level.
+<br>
+
+## How a program is launched
+
+The server does all of it, as it does for the VS Code extension: it finds the
+module of the main class, builds it with the project's build tool and runs the
+program. A launch only says how:
+
+- **Gradle** (`launcher = "gradle"`, the default for a lens on a Gradle
+  module). Gradle compiles and runs the module.
+- **Plain JVM** (`launcher = "jvm"`, the default otherwise). The server builds
+  the module, then runs `java` with the module's class path, JDK and working
+  directory, adding the VM arguments the project needs, such as
+  `--enable-preview`.
 
 <br>
 
 ## Launch configurations and launch.json
 
-The resolution runs in the adapter's `enrich_config` hook, so it applies to
-**every** launch configuration of type `kotlin`, not only to the lenses.
+Every launch configuration of type `kotlin` is launched this way, not only the
+lenses.
 
-- `dap.continue()` offers "Launch main class", "Launch main class (plain JVM)"
+- `dap.continue()` offers "Launch main class", "Launch main class (Gradle)"
   and "Attach to JVM" out of the box. `dap.configurations = false` leaves
   `dap.configurations.kotlin` / `java` alone.
 - Your own entries in `dap.configurations.kotlin` work. Only `mainClass` is
@@ -72,19 +84,21 @@ The resolution runs in the adapter's `enrich_config` hook, so it applies to
   {
       type = "kotlin", request = "launch", name = "Run server",
       mainClass = "com.example.ServerKt",
-      launcher = "gradle",   -- "auto" | "gradle" | "jvm"
+      launcher = "gradle",   -- "gradle" | "jvm"
       args = { "--port", "8080" },
       vmArgs = { "-Xmx1g" },
       env = { APP_ENV = "dev" },
-      build = true,          -- plain JVM launches: compile first
+      -- Which code a step does not enter. Default: the JDK, synthetic
+      -- methods and class loaders are skipped.
+      stepFilters = { skipClasses = { "$JDK", "com.acme.generated.*" } },
   }
   ```
 
 - A `.vscode/launch.json` written for the VS Code extension works unchanged.
   Its `intellij_jvm`, `intellij_gradle` and `intellij_debugger` types go to the
   same adapter, and `file`, `classPaths`, `modulePaths`, `moduleName`,
-  `javaExec`, `projectPath`, `sourceSet` and `gradleArgs` are honored the way
-  the extension honors them.
+  `javaExec`, `projectPath`, `sourceSet`, `gradleArgs` and `stepFilters` are
+  honored the way the extension honors them.
 
 From Lua, for example to force a plain JVM launch of a Gradle module:
 
@@ -92,7 +106,7 @@ From Lua, for example to force a plain JVM launch of a Gradle module:
 require("kotlin.dap").run_main({
     mainClass = "com.example.MainKt",
     noDebug = true,     -- false = debug
-    launcher = "jvm",   -- "gradle" | "jvm" | nil (server decides)
+    launcher = "jvm",   -- "gradle" | "jvm"
     args = { "--verbose" },
     vmArgs = { "-Xmx1g" },
     env = { APP_ENV = "dev" },

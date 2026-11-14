@@ -43,11 +43,7 @@ require("kotlin").setup {
     -- Projects to import explicitly (see "Projects and build tools").
     projects = nil,
 
-    -- Re-import when build.gradle(.kts), settings.gradle(.kts) or pom.xml is
-    -- saved: "ask" (default), "always" or "never".
-    reload_workspace = { on_build_file_save = "ask" },
-
-    -- Run/Debug code lenses above `main` functions.
+    -- Run/Debug code lenses above `main` functions and tests.
     code_lens = {
         enabled = true,
         -- The server titles lenses with VS Code codicons; these replace them
@@ -58,9 +54,10 @@ require("kotlin").setup {
 
     -- Launching programs (requires nvim-dap, see debugging.md).
     dap = {
-        console = "integratedTerminal", -- or "internalConsole" (dap REPL)
-        build_before_run = true,        -- plain JVM launches compile first
-        configurations = true,          -- default dap.configurations entries
+        -- Program output arrives in the nvim-dap REPL. "integratedTerminal"
+        -- opens it when a program prints, "internalConsole" leaves it to you.
+        console = "integratedTerminal",
+        configurations = true, -- default dap.configurations entries
     },
 
     -- Also attach to Java buffers of a project whose server is already
@@ -263,9 +260,10 @@ projects = {
         java_home = "/path/to/jdk-17",
         env = { MAVEN_OPTS = "-Xmx1g" },
         system_properties = { ["skip.tests"] = "true" },
-        profiles = { "ci" },                    -- Maven profiles (v263.6379.0+)
-        offline = true,                         -- only already-downloaded artifacts (v263.6379.0+)
-        download_additional_artifacts = false,  -- skip sources/javadoc jars (v263.6379.0+)
+        profiles = { "ci" },                    -- Maven profiles
+        offline = true,                         -- only already-downloaded artifacts
+        download_additional_artifacts = false,  -- skip sources/javadoc jars
+        skip_generate_sources = true,           -- Maven: do not run the code generators
     },
 },
 ```
@@ -277,5 +275,5 @@ projects = {
 > The server clears the environment for Maven, so variables your build needs
 > (`MAVEN_OPTS`, proxy settings, …) must be passed through `env`.
 
-Saving a build file offers to re-import (`reload_workspace.on_build_file_save`).
-Import output goes to `:KotlinBuildLog`.
+The server re-imports on its own when a build file changes. Import output
+goes to `:KotlinBuildLog`.

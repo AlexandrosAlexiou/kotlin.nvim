@@ -1,13 +1,13 @@
 ---@mod kotlin.dap Debugging through kotlin-lsp's bundled DAP server
 ---
---- Two entry points:
+--- Three entry points:
 --- - attach (`:KotlinDebug [port]`): connect to a JVM started with JDWP.
 --- - launch (`:KotlinRunMain`, `:KotlinDebugMain`, run/debug code lenses,
 ---   `dap.configurations.kotlin`, `.vscode/launch.json`): a launch
----   configuration only has to name `mainClass`. Everything else is resolved
----   from the project model in the adapter's `enrich_config` hook, exactly as
----   the VS Code extension resolves its configurations before the adapter
----   sees them (kotlin-lsp v263.4702.0+).
+---   configuration only has to name `mainClass`. The server (v271.2085.0+)
+---   finds its module, builds it and runs the program itself.
+--- - tests (Run Test / Debug Test code lenses): the server names the test
+---   runner process, which is launched like a main class.
 ---
 --- The adapter is a TCP server the LSP starts on demand (`start_debug_server`).
 
@@ -21,20 +21,18 @@ local DEFAULT_JDWP_PORT = 5005
 --- Timeout (ms) for the LSP start_debug_server request.
 local DEBUG_SERVER_TIMEOUT_MS = 10000
 
---- Timeout (ms) for the launch-resolution commands (matches the VS Code client).
-local RESOLVE_TIMEOUT_MS = 30000
-
---- Where a launched program's output goes: "integratedTerminal" (DAP
---- runInTerminal, nvim-dap opens a terminal split), "internalConsole" (adapter
---- spawns the process and streams to the REPL) or "externalTerminal".
+--- The server runs every program itself and streams its output as DAP
+--- `output` events, which nvim-dap prints in its REPL. "integratedTerminal"
+--- opens the REPL when output arrives; "internalConsole" leaves that to you.
 M.DEFAULT_CONSOLE = "integratedTerminal"
 
 --- Configuration types the VS Code extension writes to launch.json. All of
 --- them use this adapter; the Gradle one defaults to `launcher = "gradle"`.
 M.VSCODE_TYPES = { "intellij_jvm", "intellij_gradle", "intellij_debugger" }
 
---- Build tools whose own launch the server can drive.
-local BUILD_TOOL_LAUNCHERS = { gradle = true }
+--- `launcher` -> the `tool` launch argument: Gradle runs the module itself,
+--- "java" is a plain JVM the server builds the module for first.
+local TOOL_BY_LAUNCHER = { gradle = "gradle", jvm = "java" }
 
 local options = {}
 
@@ -98,79 +96,16 @@ local function non_empty(list)
   return nil
 end
 
--- workspace/executeCommand with a timeout; `cb(err, result)`.
-local function exec(client, command, arguments, cb)
-  local done = false
-  client:request("workspace/executeCommand", { command = command, arguments = arguments }, function(err, result)
-    if done then
-      return
-    end
-    done = true
-    cb(err and (err.message or vim.inspect(err)) or nil, result)
-  end, 0)
-  vim.defer_fn(function()
-    if not done then
-      done = true
-      cb(command .. " timed out after " .. RESOLVE_TIMEOUT_MS .. "ms")
-    end
-  end, RESOLVE_TIMEOUT_MS)
-end
-
--- Run `build.command` in `build.cwd`, streaming output to the build log, then
--- `on_done(ok)`.
-local function run_build(build, on_done)
-  local intellij = require("kotlin.intellij")
-  intellij.append_build_log("== " .. table.concat(build.command, " ") .. " ==")
-  notify("building with " .. (build.tool or build.command[1]) .. "...", vim.log.levels.INFO)
-  local function on_output(_, data)
-    if data and data ~= "" then
-      vim.schedule(function()
-        intellij.append_build_log(data)
-      end)
-    end
-  end
-  local ok, err = pcall(vim.system, build.command, {
-    cwd = build.cwd,
-    text = true,
-    stdout = on_output,
-    stderr = on_output,
-  }, function(result)
-    vim.schedule(function()
-      if result.code == 0 then
-        on_done(true)
-      else
-        notify(("build failed (exit %d). See :KotlinBuildLog"):format(result.code))
-        intellij.open_build_log()
-        on_done(false)
-      end
-    end)
-  end)
-  if not ok then
-    notify("could not start the build: " .. tostring(err))
-    on_done(false)
-  end
-end
-
---- Fill in what a launch configuration leaves out, from the project model.
---- Mirrors the VS Code extension's launch resolution (dap.ts):
+--- Put a launch configuration into the adapter's vocabulary, as the VS Code
+--- extension does (dap.ts). Nothing is asked of the server: it resolves the
+--- module, class path, JDK and working directory from the launch itself.
 ---
----   file      -> intellij.java.resolveClassDocument { fqn } when absent
----   launcher = "auto" (the Run/Debug lens)
----             -> intellij.java.resolveBuildToolLaunch { uri, mainClass };
----                through the build tool when it can run the module
----                (Gradle), otherwise a plain JVM launch.
----   launcher = "gradle" (default for type intellij_gradle)
----             -> buildToolTarget for the adapter's Gradle command and
----                classPaths as the session's breakpoint scope.
----   launcher = "jvm" (default for every other type)
----             -> intellij.java.resolveBuildCommand { uri }, run first when
----                `dap.build_before_run` / `config.build` allow it
----             -> intellij.java.resolveLaunch { uri, cwd, overrides }:
----                javaExec, classPaths, modulePaths, moduleName,
----                moduleContentPaths, cwd in one answer.
+---   launcher = "gradle" (default for type intellij_gradle and for a lens on a
+---              Gradle module) -> tool "gradle", `gradleArgs` as `toolArgs`
+---   launcher = "jvm"    (default otherwise) -> tool "java"
 ---
 --- Called by nvim-dap through the adapter's enrich_config hook. Not calling
---- on_config aborts the session, which is what happens on resolution errors.
+--- on_config aborts the session.
 ---@param config table
 ---@param on_config fun(config: table)
 function M.enrich_config(config, on_config)
@@ -178,176 +113,80 @@ function M.enrich_config(config, on_config)
     on_config(config)
     return
   end
-
-  local client = get_client(vim.api.nvim_get_current_buf())
-  if not client then
-    notify("Kotlin LSP not running, cannot resolve the launch configuration")
-    return
-  end
   if not config.mainClass or config.mainClass == "" then
     notify('launch configurations require "mainClass"')
     return
   end
-
-  local function fail(msg)
-    notify("cannot start: " .. msg)
+  local launcher = config.launcher
+  if launcher == nil or launcher == "auto" then
+    -- `tool` is the module's build tool as the run lens names it.
+    launcher = (config.type == "intellij_gradle" or config.tool == "gradle") and "gradle" or "jvm"
   end
-
-  local function finish()
-    config.console = config.console or options.console or M.DEFAULT_CONSOLE
-    on_config(config)
-  end
-
-  -- Gradle launch: the adapter runs Gradle, which compiles and runs the module;
-  -- the session is scoped to the module's classpath.
-  local function apply_build_tool_launch(uri, response)
-    config.launcher = response.tool
-    config.buildToolTarget = {
-      uri = uri,
-      moduleName = response.moduleName,
-      projectPath = config.projectPath,
-      sourceSet = config.sourceSet,
-      toolArgs = non_empty(config.gradleArgs),
-    }
-    config.classPaths = non_empty(response.scopeClassPaths)
-    finish()
-  end
-
-  local function resolve_build_tool(uri, on_done)
-    exec(client, "intellij.java.resolveBuildToolLaunch", { { uri = uri, mainClass = config.mainClass } }, on_done)
-  end
-
-  -- JVM launch: everything `java` needs, resolved in one request. The server
-  -- merges the configuration's own values (`overrides`) itself.
-  local function resolve_jvm(uri)
-    config.launcher = "jvm"
-    local overrides = {
-      classPaths = non_empty(config.classPaths),
-      modulePaths = non_empty(config.modulePaths),
-      moduleName = config.moduleName,
-      javaExec = config.javaExec,
-      vmArgs = non_empty(config.vmArgs),
-    }
-    if next(overrides) == nil then
-      overrides = vim.empty_dict()
-    end
-    exec(
-      client,
-      "intellij.java.resolveLaunch",
-      { { uri = uri, cwd = config.cwd, overrides = overrides } },
-      function(err, paths)
-        if err then
-          fail("intellij.java.resolveLaunch failed: " .. err)
-          return
-        end
-        paths = type(paths) == "table" and paths or {}
-        config.classPaths = non_empty(paths.classpath)
-        -- A JPMS launch carries the module path and the owning module, so the
-        -- main class runs as `-m moduleName/mainClass`.
-        config.modulePaths = non_empty(paths.modulePath)
-        if paths.moduleName then
-          config.moduleName = paths.moduleName
-        end
-        -- Output roots the adapter patches into the module with --patch-module.
-        config.moduleContentPaths = non_empty(paths.moduleContentPaths)
-        -- The module's directory unless the config named one; without either
-        -- the program inherits the server's cwd.
-        if paths.workingDirectory then
-          config.cwd = paths.workingDirectory
-        end
-        if paths.javaExec then
-          config.javaExec = paths.javaExec
-        end
-        -- The config's own VM arguments plus what the project requires
-        -- (`--enable-preview` for a preview language level). Absent on older
-        -- servers, which keep the config's own.
-        if paths.vmArgs then
-          config.vmArgs = non_empty(paths.vmArgs)
-        end
-        finish()
-      end
-    )
-  end
-
-  -- Compile first (whatever tool the server names), then launch. Nothing to
-  -- build, or no way to ask, launches what is already compiled.
-  local function build_then_jvm(uri)
-    local wanted = options.build_before_run ~= false
-    if config.build == false or (config.build == nil and not wanted) then
-      resolve_jvm(uri)
-      return
-    end
-    exec(client, "intellij.java.resolveBuildCommand", { { uri = uri } }, function(err, resolved)
-      if err then
-        notify("build skipped, intellij.java.resolveBuildCommand failed: " .. err, vim.log.levels.WARN)
-        resolve_jvm(uri)
-        return
-      end
-      if
-        type(resolved) ~= "table"
-        or not resolved.supported
-        or type(resolved.command) ~= "table"
-        or #resolved.command == 0
-      then
-        resolve_jvm(uri)
-        return
-      end
-      run_build({ tool = resolved.tool, command = resolved.command, cwd = resolved.cwd }, function(ok)
-        if ok then
-          resolve_jvm(uri)
-        end
-      end)
-    end)
-  end
-
-  local function resolve_from(uri)
-    local launcher = config.launcher
-    if launcher == nil then
-      launcher = config.type == "intellij_gradle" and "gradle" or "jvm"
-    end
-    if launcher == "jvm" then
-      build_then_jvm(uri)
-    elseif BUILD_TOOL_LAUNCHERS[launcher] then
-      resolve_build_tool(uri, function(err, response)
-        if err then
-          fail("intellij.java.resolveBuildToolLaunch failed: " .. err)
-        elseif type(response) ~= "table" or response.tool == nil then
-          fail(('no build tool can launch "%s"; use launcher = "jvm"'):format(config.mainClass))
-        elseif response.tool ~= launcher then
-          fail(('"%s" is launched by %s, not %s'):format(config.mainClass, response.tool, launcher))
-        else
-          apply_build_tool_launch(uri, response)
-        end
-      end)
-    elseif launcher == "auto" then
-      -- Prefer the build tool's own launch when one exists; a failure to ask
-      -- falls back to a JVM launch, which reports properly.
-      resolve_build_tool(uri, function(err, response)
-        if not err and type(response) == "table" and BUILD_TOOL_LAUNCHERS[response.tool or ""] then
-          apply_build_tool_launch(uri, response)
-        else
-          build_then_jvm(uri)
-        end
-      end)
-    else
-      fail(('unknown launcher "%s" (expected "auto", "jvm" or "gradle")'):format(tostring(launcher)))
-    end
-  end
-
-  if type(config.file) == "string" and config.file ~= "" and not config.file:find("${", 1, true) then
-    resolve_from(vim.uri_from_fname(vim.fn.fnamemodify(config.file, ":p")))
+  if not TOOL_BY_LAUNCHER[launcher] then
+    notify(('cannot start: unknown launcher "%s" (expected "auto", "jvm" or "gradle")'):format(tostring(launcher)))
     return
   end
-
-  exec(client, "intellij.java.resolveClassDocument", { { fqn = config.mainClass } }, function(err, result)
-    local uri = type(result) == "table" and result.uri or nil
-    if err or not uri then
-      fail(("no source file for %s%s"):format(config.mainClass, err and (": " .. err) or ""))
-      return
-    end
-    resolve_from(uri)
-  end)
+  config.tool = TOOL_BY_LAUNCHER[launcher]
+  config.toolArgs = non_empty(config.gradleArgs)
+  config.console = config.console or options.console or M.DEFAULT_CONSOLE
+  on_config(config)
 end
+
+-- TeamCity service message escapes: |n and |r, every other |x stands for x.
+local TEAMCITY_ESCAPES = { n = "\n", r = "\r" }
+
+-- Value of attribute `key` in a `##teamcity[kind key='value' ...]` message.
+-- shortcut: |0xNNNN unicode escapes come through as text, decode them if a test name ever needs it
+local function teamcity_attr(message, key)
+  local _, i = message:find(" " .. key .. "='", 1, true)
+  local out = {}
+  while i and i < #message do
+    i = i + 1
+    local c = message:sub(i, i)
+    if c == "'" then
+      break
+    elseif c == "|" then
+      i = i + 1
+      c = message:sub(i, i)
+      c = TEAMCITY_ESCAPES[c] or c
+    end
+    out[#out + 1] = c
+  end
+  return table.concat(out)
+end
+
+--- The test runner reports through TeamCity service messages on stdout. Turn
+--- the results into readable lines, drop the bookkeeping and pass the tests'
+--- own output through. `failed` remembers a failure until its testFinished.
+---@param output string one DAP output chunk
+---@param failed table<string, boolean>
+---@return string
+function M.test_output(output, failed)
+  local kind = output:match("^##teamcity%[(%a+)")
+  if not kind then
+    return output
+  end
+  local name = teamcity_attr(output, "name")
+  if kind == "testFailed" then
+    failed[name] = true
+    -- A failed comparison carries its two sides apart from the message.
+    local expected, actual = teamcity_attr(output, "expected"), teamcity_attr(output, "actual")
+    local compared = (expected .. actual) ~= "" and ("expected: <%s> but was: <%s>"):format(expected, actual)
+      or ""
+    local details = teamcity_attr(output, "details"):gsub("^\n", ""):gsub("\n+$", "")
+    return ("✗ %s\n%s%s\n%s\n"):format(name, teamcity_attr(output, "message"), compared, details)
+  elseif kind == "testIgnored" then
+    return ("- %s (ignored)\n"):format(name)
+  elseif kind == "testFinished" then
+    if not failed[name] then
+      return ("✓ %s (%s ms)\n"):format(name, teamcity_attr(output, "duration"))
+    end
+    failed[name] = nil
+  end
+  return ""
+end
+
+assert(M.test_output("##teamcity[testFailed name='a|'b()' message='x|ny' details='|[d|]']\n", {}) == "✗ a'b()\nx\ny\n[d]\n")
 
 --- Ensure the Kotlin DAP adapter is registered with nvim-dap.
 --- Called lazily on first debug session to avoid load-order issues.
@@ -409,9 +248,10 @@ local function ensure_adapter()
             -- adapterID sent in the DAP initialize request. `intellij_debugger`
             -- is the deprecated alias.
             id = "intellij_jvm",
-            -- Resolve classpath, cwd and JDK from the project model before the
-            -- session starts, like the VS Code extension does.
             enrich_config = M.enrich_config,
+            -- A debug launch is answered only once the server has built the
+            -- module; nvim-dap's 4 s default calls that an unresponsive adapter.
+            options = { initialize_timeout_sec = 600 },
           })
         end)
       end)
@@ -454,6 +294,31 @@ local function ensure_listeners()
   dap.listeners.after.disconnect["kotlin_nvim"] = function()
     notify("debugger disconnected", vim.log.levels.INFO)
   end
+  local last_session, failed
+  dap.listeners.before.event_output["kotlin_nvim"] = function(session, body)
+    local config = session.config
+    if config.type ~= "kotlin" and not vim.tbl_contains(M.VSCODE_TYPES, config.type) then
+      return
+    end
+    local first = last_session ~= session
+    last_session = session
+    if first then
+      failed = {}
+    end
+    if config.kotlinTest and body.output then
+      body.output = M.test_output(body.output, failed)
+    end
+    -- Open the REPL on a session's first output, unless a window (nvim-dap-ui,
+    -- ...) already shows it or the configuration says "internalConsole".
+    if first and config.console ~= "internalConsole" and body.category ~= "telemetry" then
+      for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+        if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "dap-repl" then
+          return
+        end
+      end
+      dap.repl.open({ height = 12 })
+    end
+  end
   listeners_set = true
 end
 
@@ -461,11 +326,11 @@ local function short_name(main_class)
   return main_class:match("([^.]+)$") or main_class
 end
 
---- Launch (run or debug) a `main` class. Fields other than `mainClass` are
---- optional; everything the JVM needs is resolved by enrich_config.
---- `launcher`: "auto" (default: the build tool when it can run the module,
---- like the run lens), "gradle" or "jvm".
----@param target { mainClass: string, uri?: string, file?: string, noDebug?: boolean, launcher?: "auto"|"gradle"|"jvm", args?: string[], vmArgs?: string[], env?: table<string,string>, cwd?: string, console?: string, build?: boolean, projectPath?: string, sourceSet?: string, gradleArgs?: string[] }
+--- Launch (run or debug) a `main` class. Only `mainClass` is required; the
+--- server resolves and builds everything else.
+--- `launcher`: "gradle" or "jvm"; by default Gradle for a Gradle module (`tool`,
+--- as the run lens names it) and a plain JVM otherwise.
+---@param target { mainClass: string, uri?: string, file?: string, tool?: string, noDebug?: boolean, launcher?: "auto"|"gradle"|"jvm", args?: string[], vmArgs?: string[], env?: table<string,string>, cwd?: string, console?: string, projectPath?: string, sourceSet?: string, gradleArgs?: string[], stepFilters?: table }
 function M.run_main(target)
   if not ensure_adapter() then
     return
@@ -487,18 +352,59 @@ function M.run_main(target)
     name = (target.noDebug and "Run " or "Debug ") .. short_name(target.mainClass),
     mainClass = target.mainClass,
     file = file,
+    tool = target.tool,
     noDebug = target.noDebug == true,
-    launcher = target.launcher or "auto",
+    launcher = target.launcher,
     args = non_empty(target.args),
     vmArgs = non_empty(target.vmArgs),
     env = target.env,
     cwd = target.cwd,
     console = target.console,
-    build = target.build,
     projectPath = target.projectPath,
     sourceSet = target.sourceSet,
     gradleArgs = non_empty(target.gradleArgs),
+    stepFilters = target.stepFilters,
   })
+end
+
+--- Run or debug a test class or method: the Run Test / Debug Test lenses
+--- (v271.2085.0+). The server names the runner process and its jars; it runs
+--- on the class path of the test's module, which the server builds first.
+---@param target { testId: string, uri: string, noDebug?: boolean }
+function M.run_test(target)
+  if not ensure_adapter() then
+    return
+  end
+  local client = get_client(vim.api.nvim_get_current_buf())
+  if not client or type(target) ~= "table" or not target.testId then
+    notify("cannot run the test: " .. (client and "malformed test lens" or "Kotlin LSP not running"))
+    return
+  end
+  ensure_listeners()
+  client:request("workspace/executeCommand", {
+    command = "intellij.jvm.resolveTestLaunch",
+    arguments = { { testIds = { target.testId }, uniqueIds = {}, tags = {} } },
+  }, function(err, launches)
+    -- shortcut: one runner process per run; start the others too if a single test id ever resolves to several
+    local launch = type(launches) == "table" and launches[1]
+    if err or not launch then
+      notify("cannot run the test: " .. (err and err.message or "the server found no way to run it"))
+      return
+    end
+    require("dap").run({
+      type = "kotlin",
+      request = "launch",
+      name = (target.noDebug and "Run " or "Debug ") .. short_name(target.testId),
+      mainClass = launch.mainClass,
+      file = type(launch.file) == "string" and launch.file or vim.uri_to_fname(target.uri),
+      args = launch.args,
+      additionalClassPaths = launch.runtimeClasspath,
+      additionalModulePaths = non_empty(launch.runtimeModulePath),
+      noDebug = target.noDebug == true,
+      launcher = "jvm",
+      kotlinTest = true,
+    })
+  end)
 end
 
 -- Pick a main class in the current buffer (from the run lenses) and launch it.
@@ -516,7 +422,7 @@ local function run_current(no_debug, fargs)
     return
   end
   local function go(t)
-    M.run_main({ mainClass = t.mainClass, uri = t.uri, noDebug = no_debug, args = fargs })
+    M.run_main({ mainClass = t.mainClass, uri = t.uri, tool = t.tool, noDebug = no_debug, args = fargs })
   end
   if #targets == 1 then
     go(targets[1])
@@ -535,7 +441,7 @@ local function run_current(no_debug, fargs)
 end
 
 --- Default nvim-dap configurations for `dap.continue()` in Kotlin (and Java)
---- buffers. Every field except `mainClass` is resolved from the project model.
+--- buffers. Every field except `mainClass` is resolved by the server.
 local function default_configurations()
   return {
     {
@@ -545,16 +451,15 @@ local function default_configurations()
       mainClass = function()
         return vim.fn.input("Main class: ")
       end,
-      launcher = "auto",
     },
     {
       type = "kotlin",
       request = "launch",
-      name = "Launch main class (plain JVM)",
+      name = "Launch main class (Gradle)",
       mainClass = function()
         return vim.fn.input("Main class: ")
       end,
-      launcher = "jvm",
+      launcher = "gradle",
     },
     {
       type = "kotlin",
@@ -568,7 +473,7 @@ local function default_configurations()
 end
 
 --- Register the debug commands. The DAP adapter itself is registered lazily.
----@param opts? table plugin options (`dap.console`, `dap.build_before_run`, `dap.configurations`)
+---@param opts? table plugin options (`dap.console`, `dap.configurations`)
 function M.setup(opts)
   options = (opts and opts.dap) or {}
 

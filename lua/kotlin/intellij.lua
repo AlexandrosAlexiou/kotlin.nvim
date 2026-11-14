@@ -61,11 +61,9 @@ function M.open_build_log()
   vim.api.nvim_win_set_cursor(0, { vim.api.nvim_buf_line_count(bufnr), 0 })
 end
 
--- `intellij/chooseAction`: a ModCommand offers several actions; show them and
--- run the pick. v263.6379.0+ entries carry the command to execute; older
--- servers send a session id and an index for `chooseModCommandAction`. The
--- chosen action may itself yield another menu, which arrives as a follow-up
--- notification.
+-- `intellij/chooseAction`: a ModCommand offers several actions, each with the
+-- command that runs it; show them and run the pick. The chosen action may
+-- itself yield another menu, which arrives as a follow-up notification.
 local function choose_action(params, ctx)
   local client = vim.lsp.get_client_by_id(ctx.client_id)
   if not client or type(params) ~= "table" or type(params.entries) ~= "table" then
@@ -82,7 +80,6 @@ local function choose_action(params, ctx)
         return
       end
       local command = choice.command
-        or { command = "chooseModCommandAction", arguments = { params.sessionId, choice.index } }
       client:exec_cmd({ title = choice.name, command = command.command, arguments = command.arguments }, {}, function(err)
         if err then
           vim.notify("kotlin.nvim: action failed: " .. vim.inspect(err), vim.log.levels.ERROR)

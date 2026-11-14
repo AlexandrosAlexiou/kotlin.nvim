@@ -44,7 +44,7 @@ expects from the VS Code client.
 | `:KotlinReloadWorkspace` | Re-import the project without restarting the server |
 | `:KotlinRestart` | Restart the server |
 | `:KotlinCleanWorkspace` | Delete this project's server state and indexes, then restart |
-| `:KotlinBuildLog` | Import and build output |
+| `:KotlinBuildLog` | Build-tool import output |
 | `:KotlinShowLogs` | The project's server log and Neovim's LSP log |
 | `:KotlinExportWorkspaceToJson` | Write the imported workspace model to `workspace.json` |
 
@@ -101,7 +101,7 @@ blink.cmp, since all of them run the item's command. Live templates (`main`,
 
 kotlin-lsp exposes most of IntelliJ's Kotlin intentions and quick fixes as code
 actions, including the **Extract to local variable** and **Inline local
-variable** refactorings (v263.6379.0+). Some of them need the editor's help, so
+variable** refactorings. Some of them need the editor's help, so
 the server only offers them to a client that declares the JetBrains protocol
 extensions. kotlin.nvim declares them and implements:
 
@@ -173,29 +173,31 @@ refresh semantic tokens afterwards, so buffers opened during indexing kept
 degraded highlighting until the next edit. kotlin.nvim refreshes them when
 indexing ends.
 
+Labels and named arguments have their own tokens: the `label` type and the
+`namedArgument` modifier, to style through `@lsp.type.label.kotlin` and
+`@lsp.mod.namedArgument.kotlin`.
+
 <br>
 
 ## Workspace, build log and per-project state
 
 **Reload and restart.** `:KotlinReloadWorkspace` asks the server to re-import
 the project, resending the initialization options; the process and its
-indexes stay. Saving `build.gradle(.kts)`, `settings.gradle(.kts)` or `pom.xml`
-offers the same (`reload_workspace.on_build_file_save = "ask"`), does it
-without asking (`"always"`) or does nothing (`"never"`). `:KotlinRestart`
-stops and starts the server.
+indexes stay. When a build file changes the server does this on its own.
+`:KotlinRestart` stops and starts the server.
 
-**Build log.** `:KotlinBuildLog` shows Gradle/Maven import output and the
-builds run before a launch. Import start, failure and success are also
-notified, and so is a folder whose import is blocked because it contains more
-than one build system.
+**Build log.** `:KotlinBuildLog` shows Gradle/Maven import output. Import
+start, failure and success are also notified, and so is a folder whose import
+is blocked because it contains more than one build system.
 
 **Per-project state.** Each project root gets its own server state directory,
 `~/.cache/kotlin-lsp-workspaces/<name>-<hash>`
 (`%LOCALAPPDATA%\kotlin-lsp-workspaces\<name>-<hash>` on Windows), so two
-projects never share indexes, logs or caches, and two projects with the same
-directory name do not collide. The server keeps its index inside that directory
-and reports where (v263.4702.0+). `:KotlinCleanWorkspace` deletes that
-directory and the reported index directory, nothing else, and restarts.
+projects never share logs or caches, and two projects with the same directory
+name do not collide. The index lives under the user's JetBrains cache
+directory, one per workspace, and the running server reports where.
+`:KotlinCleanWorkspace` deletes the state directory and the reported index
+directory, nothing else, and restarts.
 
 <br>
 

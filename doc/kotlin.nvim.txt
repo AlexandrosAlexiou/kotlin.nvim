@@ -64,25 +64,19 @@ setup({opts})                                                          *kotlin.s
                   path = <build file or dir, absolute or relative to root>,
                   java_home = ?, env = ?, system_properties = ?,
                   project_path = ? (bazel), profiles = ? (maven),
-                  download_additional_artifacts = ?, offline = ? }.
-                Requires kotlin-lsp v263.4702.0+ (profiles and the two
-                booleans v263.6379.0+).
-            • reload_workspace: { on_build_file_save = "ask"|"always"|"never" }
-                Re-import when a build file is saved. Default "ask".
-                Requires kotlin-lsp v263.4702.0+.
+                  download_additional_artifacts = ?, offline = ?,
+                  skip_generate_sources = ? (maven) }.
             • code_lens: { enabled = boolean, icons = table|false,
-                align = boolean } — Run/Debug lenses above `main` functions.
-                Default enabled. `icons` maps the server's codicon names
-                (play, debug) to text (default: Nerd Font glyphs; false =
-                text only); `align` draws the lens at the line's indent
-                (default true). Requires kotlin-lsp v263.4702.0+ and nvim-dap
-                to execute them.
-            • dap: { console = "integratedTerminal"|"internalConsole"|
-                "externalTerminal", build_before_run = boolean,
+                align = boolean } — Run/Debug lenses above `main` functions
+                and tests. Default enabled. `icons` maps the server's codicon
+                names (play, debug) to text (default: Nerd Font glyphs; false
+                = text only); `align` draws the lens at the line's indent
+                (default true). Needs nvim-dap to execute them.
+            • dap: { console = "integratedTerminal"|"internalConsole",
                 configurations = boolean }
-                — where a launched program's output goes (default
-                integratedTerminal), whether plain JVM launches run the
-                server's build command first (default true), whether default
+                — program output arrives in the nvim-dap REPL;
+                "integratedTerminal" (default) opens it when a program
+                prints, "internalConsole" leaves that to you. Whether default
                 entries are added to dap.configurations.kotlin/java (default
                 true).
             • java_files: boolean — also attach to Java buffers of a project
@@ -112,7 +106,6 @@ setup({opts})                                                          *kotlin.s
                 types_property = true,
             },
             folding = { enabled = true },
-            reload_workspace = { on_build_file_save = "always" },
             projects = {
                 { type = "gradle", path = "backend" },
                 { type = "maven", path = "tools/pom.xml", java_home = "/path/to/jdk-17" },
@@ -461,9 +454,9 @@ the first 8 hex digits of the sha256 of its absolute path, so two projects
 with the same name do not share state. The server log is at
 `<system-path>/system/log/intellij-server.log` (`:KotlinShowLogs`).
 
-On kotlin-lsp v263.4702.0+ the index lives inside that directory and the
-server reports its exact location in `capabilities.experimental.indexDir`
-(shown by `:checkhealth kotlin`).
+The index lives under the user's JetBrains cache directory, one per
+workspace; the server reports its location in
+`capabilities.experimental.indexDir` (shown by `:checkhealth kotlin`).
 
 Commands: ~
 
@@ -481,14 +474,13 @@ Commands: ~
                          reported, then start again. Nothing outside this
                          project is touched.
 
-`:KotlinBuildLog`         Output of Gradle/Maven imports (`intellij/importLog`)
-                         and of builds run before a launch.
+`:KotlinBuildLog`         Output of Gradle/Maven imports (`intellij/importLog`).
 
 Auto reload: ~
 
-With `reload_workspace.on_build_file_save` (default `"ask"`) saving
-`build.gradle(.kts)`, `settings.gradle(.kts)` or `pom.xml` offers to
-re-import the project; `"always"` does it silently, `"never"` disables it.
+The server watches the build files (`build.gradle(.kts)`,
+`settings.gradle(.kts)`, `pom.xml`) and re-imports the project when one
+changes.
 
 Import status: ~
 
@@ -556,10 +548,9 @@ initialization options, because some of them need the editor:
 
 `intellij/chooseAction`      A "choose one" menu (e.g. which expression to
                              extract). Shown with |vim.ui.select()|; the pick
-                             runs the command its entry carries (older servers:
-                             `chooseModCommandAction`).
+                             runs the command its entry carries.
 `intellij/showConflicts`     A refactoring (Move, Extract variable) reports
-                             problems and asks to continue (v263.6379.0+).
+                             problems and asks to continue.
                              Shown with |vim.ui.select()|; picking a conflict
                              opens its code, closing the menu cancels.
 `intellij/copyToClipboard`   Text copied to the `+` and `"` registers.
@@ -572,7 +563,8 @@ initialization options, because some of them need the editor:
                              Folders whose import is blocked → notification.
 
 kotlin.nvim always sends the flag and installs these handlers. The server
-also emits `intellij.jvm.runMain` code lenses (see |kotlin.nvim.debugging|).
+also emits `intellij.jvm.runMain` and `intellij.jvm.runTest` code lenses (see
+|kotlin.nvim.debugging|).
 
 Hover markdown from the server may contain `command:` links that only VS Code
 can follow; kotlin.nvim strips the link and keeps its label.
@@ -608,7 +600,6 @@ kotlin-lsp, which spins up a DAP server and returns the port to connect to.
 Requirements: ~
 - nvim-dap (https://github.com/mfussenegger/nvim-dap) must be installed
 - kotlin-lsp must be running (open a Kotlin file first)
-- Launching (as opposed to attaching) needs kotlin-lsp v263.4702.0+
 
 Commands: ~
 
@@ -622,35 +613,36 @@ Commands: ~
 
 Run/Debug code lenses: ~
 
-Every `main` function gets "Run" and "Debug" lenses (|vim.lsp.codelens|).
+Every `main` function gets "Run" and "Debug" lenses, every JUnit / TestNG
+test class and method "Run Test" and "Debug Test" (|vim.lsp.codelens|).
 Trigger the one on the cursor line with `vim.lsp.codelens.run()`. Disable
-with `code_lens = { enabled = false }`.
+with `code_lens = { enabled = false }`. Test results are printed in the REPL,
+one line per test, with the message and stack trace of each failure.
 
-How a launch is resolved: ~
+How a program is launched: ~
 
-The server decides, like the VS Code extension:
-- A Gradle module is launched through Gradle
-  (`intellij.java.resolveBuildToolLaunch`); Gradle compiles and runs.
-- Otherwise the server returns the runtime paths
-  (`intellij.java.resolveLaunch`: java executable, classpath, module path,
-  working directory) and a build command (`intellij.java.resolveBuildCommand`).
-  kotlin.nvim runs the build first (output in `:KotlinBuildLog`) and starts
-  the program only if it succeeds; `dap.build_before_run = false` skips it.
+The server does all of it, like for the VS Code extension: it finds the
+module of the main class, builds it with the project's build tool and runs
+the program. A launch only says how:
+- `launcher = "gradle"` (default for a lens on a Gradle module): Gradle
+  compiles and runs the module.
+- `launcher = "jvm"` (default otherwise): the server builds the module, then
+  runs `java` with the module's class path, JDK and working directory.
 
-Program output goes to a terminal split (`dap.console = "integratedTerminal"`,
-DAP `runInTerminal`) or to the nvim-dap REPL (`"internalConsole"`).
+The server streams the program's output, build included, to the nvim-dap
+REPL. kotlin.nvim opens the REPL when the first output arrives unless a
+window already shows it; `dap.console = "internalConsole"` leaves that to you.
 
 nvim-dap configurations and launch.json: ~
 
-The resolution runs in the adapter's `enrich_config` hook, so any launch
-configuration of type `kotlin` only needs `mainClass`. `dap.continue()`
-offers "Launch main class", "Launch main class (plain JVM)" and "Attach to
-JVM" by default (`dap.configurations = false` to opt out). A
+Any launch configuration of type `kotlin` only needs `mainClass`.
+`dap.continue()` offers "Launch main class", "Launch main class (Gradle)" and
+"Attach to JVM" by default (`dap.configurations = false` to opt out). A
 `.vscode/launch.json` written for the VS Code extension works unchanged: its
 `intellij_jvm`, `intellij_gradle` and `intellij_debugger` types map to the
 same adapter. Recognized fields: mainClass, file, args, vmArgs, env, cwd,
-console, launcher ("auto"|"gradle"|"jvm"), build (boolean), classPaths,
-modulePaths, moduleName, javaExec, projectPath, sourceSet, gradleArgs.
+console, launcher ("gradle"|"jvm"), classPaths, modulePaths, moduleName,
+javaExec, projectPath, sourceSet, gradleArgs, stepFilters.
 >lua
     table.insert(require("dap").configurations.kotlin, {
         type = "kotlin", request = "launch", name = "Run server",
@@ -665,7 +657,7 @@ Programmatic launch: ~
     require("kotlin.dap").run_main({
         mainClass = "com.example.MainKt",
         noDebug = true,        -- false = debug
-        launcher = "jvm",      -- "gradle" | "jvm" | nil (server decides)
+        launcher = "jvm",      -- "gradle" | "jvm"
         args = { "--verbose" },
         vmArgs = { "-Xmx1g" },
         env = { APP_ENV = "dev" },

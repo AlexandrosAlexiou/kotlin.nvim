@@ -3,7 +3,7 @@ kotlin.nvim &mdash; JetBrains' Kotlin LSP in Neovim
 
 [<img alt="github" src="https://img.shields.io/badge/github-AlexandrosAlexiou/kotlin.nvim-8da0cb?style=for-the-badge&labelColor=555555&logo=github" height="20">](https://github.com/AlexandrosAlexiou/kotlin.nvim)
 [<img alt="neovim" src="https://img.shields.io/badge/neovim-0.11+-57A143?style=for-the-badge&labelColor=555555&logo=neovim" height="20">](https://neovim.io/)
-[<img alt="kotlin-lsp" src="https://img.shields.io/badge/kotlin--lsp-v263.7084.0-7F52FF?style=for-the-badge&labelColor=555555&logo=kotlin" height="20">](https://github.com/Kotlin/kotlin-lsp/releases)
+[<img alt="kotlin-lsp" src="https://img.shields.io/badge/kotlin--lsp-v271.2085.0-7F52FF?style=for-the-badge&labelColor=555555&logo=kotlin" height="20">](https://github.com/Kotlin/kotlin-lsp/releases)
 [<img alt="license" src="https://img.shields.io/github/license/AlexandrosAlexiou/kotlin.nvim?style=for-the-badge" height="20">](LICENSE.txt)
 
 This plugin runs [kotlin-lsp], JetBrains' official Kotlin language server, in
@@ -34,7 +34,7 @@ from every other project.
 :MasonInstall kotlin-lsp
 ```
 
-*Requires Neovim 0.11+ and kotlin-lsp v262.4739.0+ (v263.7084.0 recommended)*<br>
+*Requires Neovim 0.11+ and kotlin-lsp v271.2085.0+*<br>
 *[Release notes](https://github.com/AlexandrosAlexiou/kotlin.nvim/releases)*
 
 <br>
@@ -46,7 +46,7 @@ from every other project.
 | [Installation](docs/installation.md) | Plugin managers, dependencies, installing the server, supported versions, migrating from v1 |
 | [Configuration](docs/configuration.md) | Every option, per-project `.kotlin-lsp.lua`, inlay hints, build tools and multi-project import |
 | [Features](docs/features.md) | Commands, completion, intentions and refactorings, library sources, Java files, workspace management |
-| [Running and debugging](docs/debugging.md) | Code lenses, `:KotlinRunMain`, launch configurations, `launch.json`, attaching |
+| [Running and debugging](docs/debugging.md) | Code lenses, `:KotlinRunMain`, tests, launch configurations, `launch.json`, attaching |
 | [Troubleshooting](docs/troubleshooting.md) | Expired builds, missing inlay hints, import failures, logs |
 
 The same material is available inside Neovim as `:help kotlin.nvim.contents`.
@@ -78,15 +78,15 @@ plugin implements what the server expects from its own client:
 - **Inlay hints.** The server asks for its hint settings on every request.
   kotlin.nvim answers from the `inlay_hints` option.
 
-- **Running and debugging.** Run and Debug lenses above `main`,
-  `:KotlinRunMain`, `:KotlinDebugMain` and `:KotlinDebug`. The server decides
-  whether to launch through Gradle or a plain JVM, and VS Code `launch.json`
-  files work as they are.
+- **Running and debugging.** Run and Debug lenses above `main` and above
+  JUnit / TestNG tests, `:KotlinRunMain`, `:KotlinDebugMain` and
+  `:KotlinDebug`. The server builds and launches the program, through Gradle
+  or a plain JVM, and VS Code `launch.json` files work as they are.
 
 - **Library sources.** `jar:` and `jrt:` locations open as read-only buffers
   with hover and navigation still working inside them.
 
-- **Workspace management.** Re-import on build-file save, a build log, and
+- **Workspace management.** An import log, `:KotlinReloadWorkspace`, and
   `:KotlinCleanWorkspace` to reset one project's indexes.
 
 <br>
@@ -105,7 +105,6 @@ require("kotlin").setup {
         parameters_compiled = false,
         call_chains = true,
     },
-    reload_workspace = { on_build_file_save = "always" },
     dap = { console = "internalConsole" },
 }
 ```

@@ -1,10 +1,12 @@
----@mod kotlin.codelens Run/Debug code lenses above `main` functions
+---@mod kotlin.codelens Run/Debug code lenses above `main` functions and tests
 ---
 --- With `runMainCodeLens = true` in the initialization options kotlin-lsp
---- (v263.4702.0+) emits two `textDocument/codeLens` items above every `main`
---- function, both carrying the client-side command `intellij.jvm.runMain` with
---- `{ mainClass, uri, noDebug }`. Neovim renders them through
---- |vim.lsp.codelens| and this module routes the command to kotlin.dap.
+--- emits two `textDocument/codeLens` items above every `main` function, both
+--- carrying the client-side command `intellij.jvm.runMain` with
+--- `{ mainClass, uri, noDebug, tool }`. With `runTestCodeLens = true`
+--- (v271.2085.0+) test classes and methods get the same pair, carrying
+--- `intellij.jvm.runTest` with `{ testId, uri, noDebug }`. Neovim renders them
+--- through |vim.lsp.codelens| and this module routes the commands to kotlin.dap.
 
 local M = {}
 
@@ -13,7 +15,7 @@ M.RUN_MAIN_COMMAND = "intellij.jvm.runMain"
 local WRAPPED = "_kotlin_codelens_wrapped"
 
 -- Nerd Font stand-ins for the codicons the server puts in lens titles
--- ("$(play) Run", "$(debug) Debug"), which Neovim would render literally.
+-- ("$(play) Run", "$(debug) Debug Test"), which Neovim would render literally.
 -- `code_lens.icons` replaces the table; `false` shows text only.
 local DEFAULT_ICONS = {
   play = "\u{f04b}",
@@ -107,7 +109,7 @@ local function attach(bufnr)
   vim.lsp.codelens.refresh({ bufnr = bufnr })
 end
 
---- Register the `intellij.jvm.runMain` command and enable lenses on attach.
+--- Register the lens commands and enable lenses on attach.
 ---@param opts table plugin options (`code_lens.enabled`, `code_lens.icons`, `code_lens.align`)
 function M.setup(opts)
   opts = opts or {}
@@ -123,6 +125,9 @@ function M.setup(opts)
       return
     end
     require("kotlin.dap").run_main(args)
+  end
+  vim.lsp.commands["intellij.jvm.runTest"] = function(command)
+    require("kotlin.dap").run_test(command.arguments and command.arguments[1])
   end
 
   local group = vim.api.nvim_create_augroup("KotlinCodeLens", { clear = true })
@@ -144,7 +149,7 @@ end
 
 --- Run-lens arguments for every `main` in `bufnr`, fetched synchronously.
 ---@param bufnr integer
----@return { mainClass: string, uri?: string, noDebug?: boolean }[]
+---@return { mainClass: string, uri?: string, tool?: string }[]
 function M.main_targets(bufnr)
   local client = vim.lsp.get_clients({ name = "kotlin_lsp", bufnr = bufnr })[1]
   if not client then
@@ -159,7 +164,7 @@ function M.main_targets(bufnr)
       local a = cmd.arguments and cmd.arguments[1]
       if type(a) == "table" and a.mainClass and not seen[a.mainClass] then
         seen[a.mainClass] = true
-        table.insert(targets, { mainClass = a.mainClass, uri = a.uri or vim.uri_from_bufnr(bufnr) })
+        table.insert(targets, { mainClass = a.mainClass, uri = a.uri or vim.uri_from_bufnr(bufnr), tool = a.tool })
       end
     end
   end
