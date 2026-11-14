@@ -171,8 +171,8 @@ local function check_clients()
     cap("implementationProvider", "implementationProvider")
     cap("renameProvider", "renameProvider")
     cap("documentFormattingProvider", "documentFormattingProvider")
-    cap("codeLensProvider (run/debug lenses, v263.4702.0+)", "codeLensProvider")
-    cap("typeHierarchyProvider (v263.4702.0+)", "typeHierarchyProvider")
+    cap("codeLensProvider (run/debug lenses)", "codeLensProvider")
+    cap("typeHierarchyProvider", "typeHierarchyProvider")
 
     local provider = caps.executeCommandProvider
     if type(provider) == "table" and provider.commands then
@@ -182,10 +182,7 @@ local function check_clients()
         "kotlin.organize.imports",
         "interpolateFileTemplate",
         "start_debug_server",
-        "chooseModCommandAction",
-        "intellij.java.resolveLaunch",
-        "intellij.java.resolveBuildToolLaunch",
-        "intellij.java.resolveBuildCommand",
+        "intellij.jvm.resolveTestLaunch",
       }
       for _, name in ipairs(needed) do
         if vim.tbl_contains(provider.commands, name) then

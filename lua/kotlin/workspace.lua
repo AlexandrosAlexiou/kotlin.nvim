@@ -1,19 +1,10 @@
 ---@mod kotlin.workspace Workspace lifecycle: reload, restart, cache cleaning
 ---
 --- Mirrors the VS Code extension's "Reimport Project", "Restart Language
---- Server" and "Clear Caches and Restart" commands, and its auto-reload on
---- build-file save.
+--- Server" and "Clear Caches and Restart" commands. Build files need no
+--- watching here: the server (v271.2085.0+) re-imports when one changes.
 
 local M = {}
-
--- Build descriptors whose save triggers a workspace reload.
-local BUILD_FILE_NAMES = {
-  ["pom.xml"] = true,
-  ["build.gradle"] = true,
-  ["build.gradle.kts"] = true,
-  ["settings.gradle"] = true,
-  ["settings.gradle.kts"] = true,
-}
 
 -- `--system-path` used for each client root, recorded when the launcher is
 -- started so :KotlinShowLogs / :KotlinCleanWorkspace find the right directory.
@@ -42,12 +33,10 @@ local function pick_client(bufnr)
 end
 
 --- Ask the server to re-import the workspace, resending the initialization
---- options (v263.4702.0+, `intellij/reloadWorkspace`). Unlike a restart this
---- keeps the process and its indexes.
----@param opts? { silent?: boolean, client?: vim.lsp.Client }
-function M.reload(opts)
-  opts = opts or {}
-  local client = opts.client or pick_client(vim.api.nvim_get_current_buf())
+--- options (`intellij/reloadWorkspace`). Unlike a restart this keeps the
+--- process and its indexes.
+function M.reload()
+  local client = pick_client(vim.api.nvim_get_current_buf())
   if not client then
     vim.notify("kotlin.nvim: Kotlin LSP not running", vim.log.levels.ERROR)
     return
@@ -59,15 +48,10 @@ function M.reload(opts)
   end
   client:request("intellij/reloadWorkspace", { initializationOptions = init_options }, function(err)
     if err then
-      -- MethodNotFound: server predates v263.4702.0
-      local msg = err.code == -32601 and "kotlin-lsp too old for intellij/reloadWorkspace (needs v263.4702.0+)"
-        or ("failed to reload workspace: " .. vim.inspect(err))
-      vim.notify("kotlin.nvim: " .. msg, vim.log.levels.ERROR)
+      vim.notify("kotlin.nvim: failed to reload workspace: " .. vim.inspect(err), vim.log.levels.ERROR)
       return
     end
-    if not opts.silent then
-      vim.notify("kotlin.nvim: workspace reloaded", vim.log.levels.INFO)
-    end
+    vim.notify("kotlin.nvim: workspace reloaded", vim.log.levels.INFO)
   end)
 end
 
@@ -145,8 +129,8 @@ function M.clean(opts)
   end
 
   local system_path = system_paths[root] or kotlin.workspace_dir_for_root(root)
-  -- v263.4702.0+ keeps the index inside the system path; older builds report a
-  -- directory under the JetBrains analyzer cache, known only while running.
+  -- The index lives under the user's JetBrains cache directory, in a place
+  -- only the running server reports.
   local experimental = client and client.server_capabilities.experimental
   local index_dir = type(experimental) == "table" and experimental.indexDir or nil
 
@@ -175,56 +159,6 @@ function M.clean(opts)
   else
     do_clean()
   end
-end
-
---- Whether `path` is a build descriptor whose change warrants a re-import.
----@param path string
----@return boolean
-function M.is_build_file(path)
-  return BUILD_FILE_NAMES[vim.fn.fnamemodify(path, ":t")] == true
-end
-
---- Reload the workspace when a build file is saved, honoring
---- `reload_workspace.on_build_file_save` = "always" | "ask" | "never".
----@param opts table plugin options
-function M.setup_auto_reload(opts)
-  local mode = (opts.reload_workspace or {}).on_build_file_save or "ask"
-  if mode == "never" then
-    return
-  end
-  local group = vim.api.nvim_create_augroup("KotlinAutoReloadWorkspace", { clear = true })
-  vim.api.nvim_create_autocmd("BufWritePost", {
-    group = group,
-    callback = function(args)
-      local path = vim.api.nvim_buf_get_name(args.buf)
-      if path == "" or not M.is_build_file(path) then
-        return
-      end
-      local dir = vim.fn.fnamemodify(path, ":p:h")
-      local client
-      for _, c in ipairs(vim.lsp.get_clients({ name = "kotlin_lsp" })) do
-        if c.root_dir and vim.startswith(dir, c.root_dir) then
-          client = c
-          break
-        end
-      end
-      if not client then
-        return
-      end
-      if mode == "always" then
-        M.reload({ client = client, silent = true })
-        return
-      end
-      vim.ui.select({ "Reload workspace", "Not now" }, {
-        prompt = vim.fn.fnamemodify(path, ":t") .. " changed. Re-import the project?",
-      }, function(choice)
-        if choice == "Reload workspace" then
-          M.reload({ client = client })
-        end
-      end)
-    end,
-    desc = "Reload the kotlin-lsp workspace when a build file is saved",
-  })
 end
 
 return M

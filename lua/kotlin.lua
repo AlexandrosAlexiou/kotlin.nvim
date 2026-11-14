@@ -7,10 +7,10 @@ local global_opts = {}
 -- need to resolve a project root outside of the LSP config callbacks.
 local active_root_markers = nil
 
--- Exit code the launcher uses when the bundled build's licence has expired
--- (AppExitCodes.LICENSE_ERROR). kotlin-lsp builds carry a time-limited EAP
--- licence; VS Code reports this as "the bundled build has expired".
-local EXPIRED_BUILD_EXIT_CODE = 7
+-- Exit code the launcher uses for a licensing problem it cannot run with
+-- (AppExitCodes.LICENSE_ERROR): in practice the build's time-limited EAP
+-- licence has expired.
+local LICENSING_EXIT_CODE = 7
 
 function M.setup(opts)
   opts = opts or {}
@@ -22,7 +22,6 @@ function M.setup(opts)
   require("kotlin.dap").setup(opts)
   require("kotlin.file_templates").setup(opts)
   require("kotlin.codelens").setup(opts)
-  require("kotlin.workspace").setup_auto_reload(opts)
 
   vim.api.nvim_create_user_command("KotlinCleanWorkspace", function()
     M.clean_workspace()
@@ -289,6 +288,7 @@ local function configured_project(entry, root)
     project.downloadAdditionalArtifacts = entry.downloadAdditionalArtifacts
   end
   project.offline = entry.offline
+  project.skipGenerateSources = entry.skip_generate_sources
   return project
 end
 
@@ -407,9 +407,10 @@ function M.setup_kotlin_lsp(opts)
   -- client executes the fix's command (cheaper code action lists).
   init_options.lazyIntentions = true
 
-  -- Run/Debug lenses above `main` functions (see lua/kotlin/codelens.lua).
+  -- Run/Debug lenses above `main` functions and tests (see lua/kotlin/codelens.lua).
   if not (opts.code_lens and opts.code_lens.enabled == false) then
     init_options.runMainCodeLens = true
+    init_options.runTestCodeLens = true
   end
 
   -- JDK for symbol resolution goes in init_options, not settings (matching VSCode).
@@ -472,8 +473,8 @@ function M.setup_kotlin_lsp(opts)
     return require("kotlin.completion").show_document(params, ctx)
   end
 
-  -- kotlin-lsp (v263.6379.0) stamps its edits with its own count of document
-  -- changes instead of the version the client sent, and Neovim's versions are
+  -- kotlin-lsp (still on v271.2085.0) stamps its edits with its own count of
+  -- document changes instead of the version the client sent, and Neovim's versions are
   -- `changedtick`s, so after the first change in a buffer every refactoring
   -- edit (Extract/Inline variable, intentions) looked stale and was silently
   -- dropped. Clear the version so the edit applies to the current buffer.
@@ -578,10 +579,10 @@ function M.setup_kotlin_lsp(opts)
       end
     end,
     on_exit = function(code, signal)
-      if code == EXPIRED_BUILD_EXIT_CODE then
+      if code == LICENSING_EXIT_CODE then
         vim.schedule(function()
           vim.notify(
-            "kotlin.nvim: this kotlin-lsp build has expired (its embedded licence ran out) and refuses to start. "
+            "kotlin.nvim: kotlin-lsp refuses to start over a licensing problem: most likely this build has expired. "
               .. "Update kotlin-lsp (:MasonInstall kotlin-lsp or a newer release) and restart Neovim.",
             vim.log.levels.ERROR
           )

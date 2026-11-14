@@ -17,7 +17,7 @@ advertises.
 ## The server does not start: build expired
 
 kotlin-lsp builds carry a time-limited licence. When it lapses, the launcher
-exits with code 7 and the server never starts. kotlin.nvim reports this, and
+exits with code 7 (a licensing problem) and the server never starts. kotlin.nvim reports this, and
 `:checkhealth kotlin` shows the expiry date.
 
 | Build | Expires |
@@ -25,6 +25,7 @@ exits with code 7 and the server never starts. kotlin.nvim reports this, and
 | v263.4702.0 | 2026-10-08 |
 | v263.6379.0 | 2026-10-30 |
 | v263.7084.0 | 2026-11-13 |
+| v271.2085.0 | 2026-12-03 |
 
 Update kotlin-lsp before then: `:MasonInstall kotlin-lsp`, or a newer build from
 the [releases](https://github.com/Kotlin/kotlin-lsp/releases).
